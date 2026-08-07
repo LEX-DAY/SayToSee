@@ -1,0 +1,65 @@
+name: calltocall
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env.local
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+    depends_on:
+      - livekit
+    networks:
+      - calltocall_private
+
+  livekit:
+    image: livekit/livekit-server:v1.13.1
+    restart: unless-stopped
+    init: true
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    environment:
+      LIVEKIT_CONFIG: |
+        port: 7880
+        bind_addresses:
+          - "${LIVEKIT_BIND_ADDRESS:-0.0.0.0}"
+        logging:
+          level: info
+          pion_level: error
+        rtc:
+          tcp_port: 7881
+          udp_port: 7882
+          use_external_ip: ${LIVEKIT_USE_EXTERNAL_IP:-true}
+          node_ip: "${LIVEKIT_NODE_IP:-127.0.0.1}"
+          interfaces:
+            includes:
+              - eth0
+          congestion_control:
+            enabled: true
+            allow_pause: true
+          allow_tcp_fallback: true
+          packet_buffer_size_audio: 200
+          packet_buffer_size_video: 500
+        audio:
+          active_red_encoding: true
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
+    ports:
+      - "127.0.0.1:7880:7880/tcp"
+      - "7881:7881/tcp"
+      - "7882:7882/udp"
+    networks:
+      - calltocall_private
+
+networks:
+  calltocall_private:
+    # Keep the existing VM network name so upgrades do not create an
+    # overlapping subnet while the previous release is still running.
+    name: calltocall_private
+    ipam:
+      config:
+        - subnet: 172.30.250.0/24

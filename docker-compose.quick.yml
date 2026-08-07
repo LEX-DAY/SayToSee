@@ -1,0 +1,27 @@
+services:
+  quick-gateway:
+    image: caddy:2.10-alpine
+    container_name: saytosee-quick-gateway
+    restart: "no"
+    volumes:
+      - ./infra/Caddyfile.quick:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - relay
+    networks:
+      - calltocall_private
+
+  quick-tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: saytosee-quick-tunnel
+    restart: "no"
+    command:
+      - tunnel
+      - --no-autoupdate
+      - --protocol
+      - http2
+      - --url
+      - http://quick-gateway:8080
+    depends_on:
+      - quick-gateway
+    networks:
+      - calltocall_private

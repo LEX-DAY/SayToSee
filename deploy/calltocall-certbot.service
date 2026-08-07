@@ -1,0 +1,11 @@
+[Unit]
+Description=Renew the SayToSee IP certificate
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+User=lex
+Group=lex
+WorkingDirectory=/home/lex/calltocall
+ExecStart=/usr/bin/env bash /home/lex/calltocall/scripts/renew-ip-certificate.sh

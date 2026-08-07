@@ -1,13 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { Manrope } from "next/font/google";
 import "@livekit/components-styles";
 import "./globals.css";
-
-const manrope = Manrope({
-  variable: "--font-manrope",
-  subsets: ["cyrillic", "latin"],
-});
 
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();
@@ -15,14 +9,15 @@ export async function generateMetadata(): Promise<Metadata> {
   const protocol =
     requestHeaders.get("x-forwarded-proto") ??
     (host?.startsWith("localhost") ? "http" : "https");
-  const origin = host ? `${protocol}://${host}` : "https://calltocall.openai.site";
-  const title = "CalltoCall — лёгкие видеовстречи до 10 человек";
+  const origin = host ? `${protocol}://${host}` : "http://localhost:3000";
+  const title = "SayToSee — лёгкие видеовстречи до 10 человек";
   const description =
-    "Создайте защищённую видеовстречу и пригласите до 10 участников одной ссылкой.";
+    "Создайте защищённую видеовстречу и подключите до 10 участников по короткому ключу.";
 
   return {
     title,
     description,
+    icons: { icon: "/saytosee-mark.png" },
     openGraph: {
       title,
       description,
@@ -46,7 +41,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru">
-      <body className={manrope.variable}>{children}</body>
+      <body>{children}</body>
     </html>
   );
 }

@@ -44,3 +44,10 @@ next-env.d.ts
 /.codex-*.log
 /.codex-*.pid
 /tsconfig.tsbuildinfo
+/certbot/
+
+# Wails desktop client
+/desktop/frontend/node_modules/
+/desktop/frontend/dist/
+/desktop/build/bin/
+/desktop/build/qa-*.png

@@ -8,12 +8,20 @@ import {
   useRoomContext,
 } from "@livekit/components-react";
 import { Check, Copy, Users } from "lucide-react";
-import { RoomEvent } from "livekit-client";
+import Image from "next/image";
+import { AudioPresets, RoomEvent, VideoPresets } from "livekit-client";
 import { useEffect, useMemo, useState } from "react";
+import AudioQualityIndicator from "./AudioQualityIndicator";
 import type { MeetingSession } from "./CallApp";
 
 function roomLabel(room: string) {
-  return room.replace(/^ctc-/, "").toUpperCase();
+  return (
+    room
+      .replace(/^ctc-/, "")
+      .toUpperCase()
+      .match(/.{1,4}/g)
+      ?.join("-") ?? ""
+  );
 }
 
 export default function MeetingRoom({
@@ -35,12 +43,24 @@ export default function MeetingRoom({
         options={{
           adaptiveStream: true,
           dynacast: true,
+          audioCaptureDefaults: {
+            autoGainControl: false,
+            channelCount: { ideal: 1 },
+            echoCancellation: true,
+            noiseSuppression: true,
+          },
           videoCaptureDefaults: {
-            resolution: { width: 1280, height: 720, frameRate: 24 },
+            resolution: VideoPresets.h540.resolution,
           },
           publishDefaults: {
+            audioPreset: AudioPresets.music,
+            dtx: false,
+            forceStereo: false,
+            red: true,
             simulcast: true,
             videoCodec: "vp8",
+            videoEncoding: VideoPresets.h540.encoding,
+            videoSimulcastLayers: [VideoPresets.h180, VideoPresets.h360],
           },
         }}
       >
@@ -81,7 +101,18 @@ function MeetingChrome({
   }, [elapsed]);
 
   async function copyInvite() {
-    await navigator.clipboard.writeText(session.inviteUrl);
+    try {
+      await navigator.clipboard.writeText(session.inviteUrl);
+    } catch {
+      const input = document.createElement("textarea");
+      input.value = session.inviteUrl;
+      input.style.position = "fixed";
+      input.style.opacity = "0";
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand("copy");
+      input.remove();
+    }
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1800);
   }
@@ -98,11 +129,8 @@ function MeetingChrome({
     <div className="meeting-layout">
       <header className="meeting-header">
         <div className="meeting-brand">
-          <span className="brand-mark mini">
-            <span />
-            <span />
-          </span>
-          <span>CalltoCall</span>
+          <Image className="brand-mark mini" src="/saytosee-mark.png" alt="" width={30} height={25} />
+          <span>SayToSee</span>
         </div>
         <div className="meeting-meta">
           <span className="live-pill">
@@ -118,9 +146,13 @@ function MeetingChrome({
             <Users size={16} />
             {participants.length}/10
           </span>
-          <button className="copy-button" onClick={() => void copyInvite()}>
+          <button
+            className="copy-button"
+            onClick={() => void copyInvite()}
+            title={session.inviteUrl}
+          >
             {copied ? <Check size={16} /> : <Copy size={16} />}
-            {copied ? "Скопировано" : "Пригласить"}
+            {copied ? "Скопировано" : "Копировать ссылку"}
           </button>
         </div>
       </header>
@@ -130,10 +162,12 @@ function MeetingChrome({
       </div>
 
       <div className="meeting-note">
-        <span className="status-dot" />
-        {session.isHost
-          ? "Вы организатор · нагрузка распределена через SFU"
-          : "Защищённое соединение установлено"}
+        <AudioQualityIndicator />
+        <span className="meeting-role">
+          {session.isHost
+            ? "Вы организатор · адаптивный WebRTC через SFU"
+            : "Защищённое WebRTC-соединение установлено"}
+        </span>
       </div>
     </div>
   );

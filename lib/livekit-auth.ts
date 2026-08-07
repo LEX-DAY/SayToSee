@@ -1,4 +1,4 @@
-import { jwtVerify, SignJWT } from "jose";
+import { SignJWT } from "jose";
 
 type VideoGrant = {
   room?: string;
@@ -16,20 +16,26 @@ function secretKey(secret: string) {
 
 export function getLiveKitConfig() {
   const serverUrl = process.env.LIVEKIT_URL?.trim();
+  const internalUrl = process.env.LIVEKIT_INTERNAL_URL?.trim();
   const apiKey = process.env.LIVEKIT_API_KEY?.trim();
   const apiSecret = process.env.LIVEKIT_API_SECRET?.trim();
 
   if (!serverUrl || !apiKey || !apiSecret) {
     throw new Error(
-      "Сервис видеосвязи ещё не настроен. Добавьте LIVEKIT_URL, LIVEKIT_API_KEY и LIVEKIT_API_SECRET.",
+      "WebRTC-сервер не настроен. Укажите LIVEKIT_URL, LIVEKIT_API_KEY и LIVEKIT_API_SECRET.",
     );
   }
 
   if (!/^wss?:\/\//.test(serverUrl)) {
-    throw new Error("LIVEKIT_URL должен начинаться с wss://");
+    throw new Error("LIVEKIT_URL должен начинаться с ws:// или wss://");
   }
 
-  return { serverUrl, apiKey, apiSecret };
+  return {
+    serverUrl,
+    apiKey,
+    apiSecret,
+    httpUrl: internalUrl || liveKitHttpUrl(serverUrl),
+  };
 }
 
 export async function signLiveKitToken({
@@ -61,47 +67,6 @@ export async function signLiveKitToken({
     .setNotBefore("0s")
     .setExpirationTime(ttl)
     .sign(secretKey(apiSecret));
-}
-
-export async function signRoomCredential({
-  room,
-  role,
-  apiSecret,
-}: {
-  room: string;
-  role: "invite" | "host";
-  apiSecret: string;
-}) {
-  return new SignJWT({ room, role })
-    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
-    .setIssuer("calltocall")
-    .setAudience("calltocall-room")
-    .setIssuedAt()
-    .setExpirationTime("24h")
-    .sign(secretKey(apiSecret));
-}
-
-export async function verifyRoomCredential({
-  token,
-  room,
-  role,
-  apiSecret,
-}: {
-  token?: string;
-  room: string;
-  role: "invite" | "host";
-  apiSecret: string;
-}) {
-  if (!token) return false;
-  try {
-    const { payload } = await jwtVerify(token, secretKey(apiSecret), {
-      issuer: "calltocall",
-      audience: "calltocall-room",
-    });
-    return payload.room === room && payload.role === role;
-  } catch {
-    return false;
-  }
 }
 
 export function liveKitHttpUrl(serverUrl: string) {

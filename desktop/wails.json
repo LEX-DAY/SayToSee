@@ -1,0 +1,20 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "SayToSee",
+  "outputfilename": "SayToSee",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "SayToSee",
+    "email": ""
+  },
+  "info": {
+    "companyName": "SayToSee",
+    "productName": "SayToSee",
+    "productVersion": "1.1.0",
+    "copyright": "Copyright © 2026 SayToSee",
+    "comments": "Лёгкий клиент для видеовстреч SayToSee"
+  }
+}

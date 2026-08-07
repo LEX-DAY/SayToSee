@@ -1,0 +1,12 @@
+{
+	email {$ACME_EMAIL:internal@localhost}
+}
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:3000
+}
+
+{$MEDIA_DOMAIN} {
+	reverse_proxy /media relay:8081
+}

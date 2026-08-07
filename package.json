@@ -1,47 +1,53 @@
 {
-  "name": "calltocall",
+  "name": "saytosee",
   "version": "0.1.0",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "vinext dev",
-    "build": "vinext build",
-    "start": "vinext start",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs",
-    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "drizzle-kit generate"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "npm run build && node --test tests/self-hosted-config.test.mjs",
+    "lint": "eslint app lib next.config.ts",
+    "local:setup": "powershell -ExecutionPolicy Bypass -File scripts/setup-local.ps1",
+    "local:up": "docker compose --env-file .env.local up -d --build",
+    "local:down": "docker compose --env-file .env.local down",
+    "local:logs": "docker compose --env-file .env.local logs -f",
+    "quick:up": "powershell -ExecutionPolicy Bypass -File scripts/start-quick-tunnel.ps1",
+    "quick:down": "powershell -ExecutionPolicy Bypass -File scripts/stop-quick-tunnel.ps1",
+    "quick:logs": "docker logs -f saytosee-quick-tunnel",
+    "local:setup:linux": "bash scripts/setup-local.sh",
+    "vm:setup:linux": "bash scripts/setup-vm.sh",
+    "quick:up:linux": "bash scripts/start-quick-tunnel.sh",
+    "quick:down:linux": "bash scripts/stop-quick-tunnel.sh",
+    "cloudflare:setup": "powershell -ExecutionPolicy Bypass -File scripts/setup-cloudflare.ps1",
+    "cloudflare:up": "powershell -ExecutionPolicy Bypass -File scripts/start-cloudflare.ps1",
+    "cloudflare:down": "powershell -ExecutionPolicy Bypass -File scripts/stop-cloudflare.ps1",
+    "cloudflare:logs": "docker compose --env-file .env.local -f docker-compose.yml -f docker-compose.cloudflare.yml logs -f"
   },
   "dependencies": {
     "@livekit/components-react": "^2.9.23",
     "@livekit/components-styles": "^1.2.0",
-    "drizzle-orm": "0.45.2",
     "jose": "^6.2.4",
     "livekit-client": "^2.21.0",
     "lucide-react": "^1.27.0",
-    "magic-string": "^0.30.21",
-    "next": "16.2.6",
+    "next": "^16.2.12",
     "react": "19.2.6",
     "react-dom": "19.2.6"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "1.37.1",
-    "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "@vitejs/plugin-react": "6.0.2",
-    "@vitejs/plugin-rsc": "0.5.26",
-    "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
-    "react-server-dom-webpack": "19.2.6",
-    "tailwindcss": "4.2.1",
-    "typescript": "5.9.3",
-    "vinext": "0.0.50",
-    "vite": "8.0.13",
-    "wrangler": "4.92.0"
+    "typescript": "5.9.3"
+  },
+  "overrides": {
+    "postcss": "8.5.24",
+    "sharp": "0.35.3"
   },
   "type": "module"
 }

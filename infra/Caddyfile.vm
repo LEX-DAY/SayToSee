@@ -1,0 +1,24 @@
+{
+	auto_https off
+	default_sni {$PUBLIC_IP}
+}
+
+http://{$PUBLIC_IP} {
+	handle /.well-known/acme-challenge/* {
+		root * /var/www/certbot
+		file_server
+	}
+
+	handle {
+		redir https://{$PUBLIC_IP}{uri} permanent
+	}
+}
+
+https://{$PUBLIC_IP} {
+	tls /etc/letsencrypt/live/{$PUBLIC_IP}/fullchain.pem /etc/letsencrypt/live/{$PUBLIC_IP}/privkey.pem
+	encode zstd gzip
+
+	@livekit path /rtc /rtc/* /twirp/*
+	reverse_proxy @livekit 127.0.0.1:7880
+	reverse_proxy 127.0.0.1:3000
+}

@@ -1,0 +1,30 @@
+services:
+  app:
+    network_mode: host
+    ports: !override []
+    networks: !override []
+    environment:
+      HOSTNAME: 127.0.0.1
+
+  livekit:
+    network_mode: host
+    ports: !override []
+    networks: !override []
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      PUBLIC_IP: "${PUBLIC_IP}"
+    volumes:
+      - ./infra/Caddyfile.vm:/etc/caddy/Caddyfile:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
+      - caddy_config:/config
+    depends_on:
+      - app
+      - livekit
+
+volumes:
+  caddy_config:
