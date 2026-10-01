@@ -103,16 +103,18 @@ export default function CallApp() {
   const [devices, setDevices] = useState<DevicePreferences>({});
   const labelPermissionTried = useRef(false);
 
-  const refreshDeviceLists = useCallback(async () => {
+  const refreshDeviceLists = useCallback(async (): Promise<MediaDeviceLists> => {
     try {
       const list = await navigator.mediaDevices.enumerateDevices();
-      setDeviceLists({
+      const lists: MediaDeviceLists = {
         mics: list.filter((device) => device.kind === "audioinput"),
         cams: list.filter((device) => device.kind === "videoinput"),
         speakers: list.filter((device) => device.kind === "audiooutput"),
-      });
+      };
+      setDeviceLists(lists);
+      return lists;
     } catch {
-      // Нет доступа к enumerateDevices — селекты останутся пустыми
+      return EMPTY_DEVICE_LISTS;
     }
   }, []);
 
@@ -213,6 +215,22 @@ export default function CallApp() {
       key: string;
       hostCredential?: string;
     }) => {
+      // exact-констрейнт падает, если устройство отключили после выбора, —
+      // перед входом сверяем выбор со свежим списком и отсеиваем пропавшие
+      const lists = await refreshDeviceLists();
+      const wiredDevices: DevicePreferences = {
+        mic: devices.mic && lists.mics.some((d) => d.deviceId === devices.mic)
+          ? devices.mic
+          : undefined,
+        cam: devices.cam && lists.cams.some((d) => d.deviceId === devices.cam)
+          ? devices.cam
+          : undefined,
+        speaker:
+          devices.speaker &&
+          lists.speakers.some((d) => d.deviceId === devices.speaker)
+            ? devices.speaker
+            : undefined,
+      };
       const response = await fetch("/api/token", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -252,10 +270,10 @@ export default function CallApp() {
         audioEnabled,
         videoEnabled,
         noiseFilterEnabled,
-        devices,
+        devices: wiredDevices,
       });
     },
-    [audioEnabled, devices, name, noiseFilterEnabled, videoEnabled],
+    [audioEnabled, devices, name, noiseFilterEnabled, refreshDeviceLists, videoEnabled],
   );
 
   async function createMeeting() {

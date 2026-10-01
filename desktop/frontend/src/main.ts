@@ -170,6 +170,10 @@ function syncSelectValue(select: HTMLSelectElement, deviceId?: string) {
     : "";
 }
 
+function hasSelectedOption(select: HTMLSelectElement, deviceId?: string) {
+  return Boolean(deviceId && select.querySelector(`option[value="${CSS.escape(deviceId)}"]`));
+}
+
 function fillDeviceSelect(
   select: HTMLSelectElement,
   devices: MediaDeviceInfo[],
@@ -265,6 +269,15 @@ async function enterMeeting(nextSession: Session) {
     return;
   }
 
+  // exact-констрейнт падает, если устройство отключили после выбора, —
+  // сверяем выбор со свежим списком и отсеиваем пропавшие девайсы
+  await refreshDeviceLists();
+  const wiredMic = hasSelectedOption(micSelect, devicePrefs.mic) ? devicePrefs.mic : undefined;
+  const wiredCam = hasSelectedOption(camSelect, devicePrefs.cam) ? devicePrefs.cam : undefined;
+  const wiredSpeaker = hasSelectedOption(speakerSelect, devicePrefs.speaker)
+    ? devicePrefs.speaker
+    : undefined;
+
   session = nextSession;
   lobby.classList.remove("active");
   meeting.classList.add("active");
@@ -276,16 +289,15 @@ async function enterMeeting(nextSession: Session) {
   room = new livekit.Room({
     adaptiveStream: true,
     dynacast: true,
+    // exact, а не ideal: Chromium при ideal молча откатывается на дефолт
     audioCaptureDefaults: {
-      deviceId: devicePrefs.mic ? { ideal: devicePrefs.mic } : undefined,
+      deviceId: wiredMic ? { exact: wiredMic } : undefined,
     },
     videoCaptureDefaults: {
-      deviceId: devicePrefs.cam ? { ideal: devicePrefs.cam } : undefined,
+      deviceId: wiredCam ? { exact: wiredCam } : undefined,
       resolution: { width: 640, height: 360, frameRate: 15 },
     },
-    audioOutput: devicePrefs.speaker
-      ? { deviceId: devicePrefs.speaker }
-      : undefined,
+    audioOutput: wiredSpeaker ? { deviceId: wiredSpeaker } : undefined,
     publishDefaults: { simulcast: false, videoCodec: "vp8", dtx: true, red: false },
   });
   bindRoomEvents(room);

@@ -142,8 +142,11 @@ export default function MeetingRoom({
             7000, 7000, 7000, 7000, 7000,
           ]),
           audioCaptureDefaults: {
+            // exact, а не ideal: Chromium при ideal молча откатывается на
+            // устройство по умолчанию. Точность гарантирует выбранный микрофон;
+            // исчезнувшее устройство отсеивается на лендинге до входа.
             deviceId: session.devices.mic
-              ? { ideal: session.devices.mic }
+              ? { exact: session.devices.mic }
               : undefined,
             autoGainControl: true,
             channelCount: { ideal: 1 },
@@ -153,7 +156,7 @@ export default function MeetingRoom({
           },
           videoCaptureDefaults: {
             deviceId: session.devices.cam
-              ? { ideal: session.devices.cam }
+              ? { exact: session.devices.cam }
               : undefined,
             // 24 fps вместо 30 — минус ~20% работы кодера; камеры без
             // 24 fps автоматически отдадут ближайший режим (обычно 30)
