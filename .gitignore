@@ -51,3 +51,4 @@ next-env.d.ts
 /desktop/frontend/dist/
 /desktop/build/bin/
 /desktop/build/qa-*.png
+desktop/.next/
