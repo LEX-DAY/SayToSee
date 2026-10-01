@@ -12,6 +12,7 @@ import {
   createIcons,
   Leaf,
   Mic,
+  MonitorSpeaker,
   MonitorUp,
   Phone,
   Users,
@@ -61,6 +62,20 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
             <button type="button" id="prejoin-audio" class="prejoin-toggle active" aria-pressed="true"><i data-lucide="mic"></i><span>Микрофон</span><i></i></button>
             <button type="button" id="prejoin-video" class="prejoin-toggle" aria-pressed="false"><i data-lucide="video"></i><span>Камера</span><i></i></button>
           </div>
+          <div class="device-picker">
+            <span>Устройства связи</span>
+            <div class="device-grid">
+              <label class="device-select"><i data-lucide="mic"></i>
+                <select id="device-mic"><option value="">По умолчанию</option></select>
+              </label>
+              <label class="device-select"><i data-lucide="video"></i>
+                <select id="device-cam"><option value="">По умолчанию</option></select>
+              </label>
+              <label class="device-select wide"><i data-lucide="monitor-speaker"></i>
+                <select id="device-speaker"><option value="">По умолчанию</option></select>
+              </label>
+            </div>
+          </div>
           <div id="lobby-error" class="form-error" role="alert"></div>
           <button id="join-button" class="primary-button" type="submit"><span>Войти по ключу</span><b>→</b></button>
           <button id="create-button" class="secondary-button" type="button"><i data-lucide="video"></i><span>Создать новую комнату</span></button>
@@ -98,7 +113,7 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
 `;
 
 createIcons({
-  icons: { Copy, Leaf, Mic, MonitorUp, Phone, Users, Video },
+  icons: { Copy, Leaf, Mic, MonitorSpeaker, MonitorUp, Phone, Users, Video },
 });
 
 const $ = <T extends HTMLElement>(selector: string) =>
@@ -113,6 +128,9 @@ const joinButton = $<HTMLButtonElement>("#join-button");
 const createButton = $<HTMLButtonElement>("#create-button");
 const audioPrejoin = $<HTMLButtonElement>("#prejoin-audio");
 const videoPrejoin = $<HTMLButtonElement>("#prejoin-video");
+const micSelect = $<HTMLSelectElement>("#device-mic");
+const camSelect = $<HTMLSelectElement>("#device-cam");
+const speakerSelect = $<HTMLSelectElement>("#device-speaker");
 const serverStatus = $("#server-status");
 const tileGrid = $("#tile-grid");
 const toast = $("#toast");
@@ -125,6 +143,84 @@ let videoEnabled = false;
 let screenEnabled = false;
 let activeSpeakers = new Set<string>();
 let toastTimer = 0;
+
+// Выбор устройств связи: тот же ключ localStorage, что и в веб-версии
+type DevicePrefs = { mic?: string; cam?: string; speaker?: string };
+const DEVICES_KEY = "saytosee:devices";
+let devicePrefs: DevicePrefs = (() => {
+  try {
+    return JSON.parse(localStorage.getItem(DEVICES_KEY) || "{}") as DevicePrefs;
+  } catch {
+    return {};
+  }
+})();
+let deviceLabelsTried = false;
+
+function saveDevicePrefs() {
+  try {
+    localStorage.setItem(DEVICES_KEY, JSON.stringify(devicePrefs));
+  } catch {
+    // localStorage недоступен — выбор просто не сохранится
+  }
+}
+
+function syncSelectValue(select: HTMLSelectElement, deviceId?: string) {
+  select.value = deviceId && select.querySelector(`option[value="${CSS.escape(deviceId)}"]`)
+    ? deviceId
+    : "";
+}
+
+function fillDeviceSelect(
+  select: HTMLSelectElement,
+  devices: MediaDeviceInfo[],
+  fallbackLabel: string,
+) {
+  const previous = select.value;
+  select.replaceChildren();
+  const defaultOption = document.createElement("option");
+  defaultOption.value = "";
+  defaultOption.textContent = "По умолчанию";
+  select.appendChild(defaultOption);
+  devices.forEach((device, index) => {
+    const option = document.createElement("option");
+    option.value = device.deviceId;
+    option.textContent = device.label || `${fallbackLabel} ${index + 1}`;
+    select.appendChild(option);
+  });
+  if (previous) syncSelectValue(select, previous);
+}
+
+async function refreshDeviceLists() {
+  try {
+    const list = await navigator.mediaDevices.enumerateDevices();
+    fillDeviceSelect(micSelect, list.filter((d) => d.kind === "audioinput"), "Микрофон");
+    fillDeviceSelect(camSelect, list.filter((d) => d.kind === "videoinput"), "Камера");
+    fillDeviceSelect(speakerSelect, list.filter((d) => d.kind === "audiooutput"), "Устройство вывода");
+    syncSelectValue(micSelect, devicePrefs.mic);
+    syncSelectValue(camSelect, devicePrefs.cam);
+    syncSelectValue(speakerSelect, devicePrefs.speaker);
+  } catch {
+    // enumerateDevices недоступен — остаются значения по умолчанию
+  }
+}
+
+// До выдачи разрешения браузер скрывает названия устройств
+async function ensureDeviceLabels() {
+  if (deviceLabelsTried) return;
+  deviceLabelsTried = true;
+  try {
+    const list = await navigator.mediaDevices.enumerateDevices();
+    if (list.some((device) => !device.label)) {
+      const stream = await navigator.mediaDevices
+        .getUserMedia({ audio: true, video: true })
+        .catch(() => null);
+      stream?.getTracks().forEach((track) => track.stop());
+    }
+  } catch {
+    // Разрешение не выдано — останутся безымянные устройства
+  }
+  await refreshDeviceLists();
+}
 
 const initials = (name: string) =>
   name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "ВЫ";
@@ -180,7 +276,16 @@ async function enterMeeting(nextSession: Session) {
   room = new livekit.Room({
     adaptiveStream: true,
     dynacast: true,
-    videoCaptureDefaults: { resolution: { width: 640, height: 360, frameRate: 15 } },
+    audioCaptureDefaults: {
+      deviceId: devicePrefs.mic ? { ideal: devicePrefs.mic } : undefined,
+    },
+    videoCaptureDefaults: {
+      deviceId: devicePrefs.cam ? { ideal: devicePrefs.cam } : undefined,
+      resolution: { width: 640, height: 360, frameRate: 15 },
+    },
+    audioOutput: devicePrefs.speaker
+      ? { deviceId: devicePrefs.speaker }
+      : undefined,
     publishDefaults: { simulcast: false, videoCodec: "vp8", dtx: true, red: false },
   });
   bindRoomEvents(room);
@@ -231,7 +336,16 @@ function bindRoomEvents(currentRoom: Room) {
         : state === ConnectionState.Connected ? "Защищённое соединение" : "Нет соединения";
       $("#meeting-live").classList.toggle("offline", state !== ConnectionState.Connected);
     })
-    .on(RoomEvent.Disconnected, () => void leaveMeeting(false));
+    .on(RoomEvent.Disconnected, () => void leaveMeeting(false))
+    .on(RoomEvent.ActiveDeviceChanged, (kind: MediaDeviceKind, deviceId: string) => {
+      // Смена устройства в комнате обновляет сохранённый выбор
+      if (kind === "audioinput") devicePrefs.mic = deviceId || undefined;
+      else if (kind === "videoinput") devicePrefs.cam = deviceId || undefined;
+      else if (kind === "audiooutput") devicePrefs.speaker = deviceId || undefined;
+      else return;
+      saveDevicePrefs();
+      void refreshDeviceLists();
+    });
 }
 
 function videoPublication(participant: Participant) {
@@ -450,6 +564,19 @@ videoPrejoin.addEventListener("click", () => {
   videoEnabled = !videoEnabled;
   togglePrejoin(videoPrejoin, videoEnabled);
 });
+for (const [select, key] of [
+  [micSelect, "mic"],
+  [camSelect, "cam"],
+  [speakerSelect, "speaker"],
+] as Array<[HTMLSelectElement, keyof DevicePrefs]>) {
+  select.addEventListener("focus", () => void ensureDeviceLabels());
+  select.addEventListener("change", () => {
+    devicePrefs[key] = select.value || undefined;
+    saveDevicePrefs();
+  });
+}
+navigator.mediaDevices?.addEventListener?.("devicechange", () => void refreshDeviceLists());
+void refreshDeviceLists();
 $("#join-form").addEventListener("submit", (event) => {
   event.preventDefault();
   void submitJoin();
