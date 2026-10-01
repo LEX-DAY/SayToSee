@@ -451,6 +451,55 @@ button {
   grid-column: 1 / -1;
 }
 
+.device-selects {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+
+.device-select {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid #dde1dc;
+  border-radius: 13px;
+  background: #fafbf8;
+}
+
+.device-select.wide {
+  grid-column: 1 / -1;
+}
+
+.device-select > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #75807f;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.device-select select {
+  width: 100%;
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid #e4e8e3;
+  border-radius: 8px;
+  background: white;
+  color: #24312e;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.device-select select:focus-visible {
+  outline: 2px solid rgba(22, 123, 98, 0.45);
+  outline-offset: 1px;
+}
+
 .form-error {
   margin-top: 13px;
   padding: 10px 12px;

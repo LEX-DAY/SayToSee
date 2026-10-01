@@ -5,12 +5,18 @@ import {
   AudioLines,
   KeyRound,
   Mic,
+  MonitorSpeaker,
   Video,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  loadDevicePreferences,
+  saveDevicePreferences,
+  type DevicePreferences,
+} from "./device-preferences";
 import { krispSupport, NOISE_FILTER_STORAGE_KEY } from "./noise-filter";
 
 export type MeetingSession = {
@@ -24,6 +30,19 @@ export type MeetingSession = {
   audioEnabled: boolean;
   videoEnabled: boolean;
   noiseFilterEnabled: boolean;
+  devices: DevicePreferences;
+};
+
+type MediaDeviceLists = {
+  mics: MediaDeviceInfo[];
+  cams: MediaDeviceInfo[];
+  speakers: MediaDeviceInfo[];
+};
+
+const EMPTY_DEVICE_LISTS: MediaDeviceLists = {
+  mics: [],
+  cams: [],
+  speakers: [],
 };
 
 type ApiError = { error?: string };
@@ -79,6 +98,42 @@ export default function CallApp() {
   // Персист включаем только после загрузки сохранённых настроек, иначе
   // первый рендер запишет дефолт поверх хранимого значения.
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [deviceLists, setDeviceLists] =
+    useState<MediaDeviceLists>(EMPTY_DEVICE_LISTS);
+  const [devices, setDevices] = useState<DevicePreferences>({});
+  const labelPermissionTried = useRef(false);
+
+  const refreshDeviceLists = useCallback(async () => {
+    try {
+      const list = await navigator.mediaDevices.enumerateDevices();
+      setDeviceLists({
+        mics: list.filter((device) => device.kind === "audioinput"),
+        cams: list.filter((device) => device.kind === "videoinput"),
+        speakers: list.filter((device) => device.kind === "audiooutput"),
+      });
+    } catch {
+      // Нет доступа к enumerateDevices — селекты останутся пустыми
+    }
+  }, []);
+
+  // До выдачи разрешения браузер скрывает названия устройств; запрашиваем
+  // доступ один раз, когда пользователь трогает селекты, и перечитываем список.
+  const ensureDeviceLabels = useCallback(async () => {
+    if (labelPermissionTried.current) return;
+    labelPermissionTried.current = true;
+    try {
+      const list = await navigator.mediaDevices.enumerateDevices();
+      if (list.some((device) => !device.label)) {
+        const stream = await navigator.mediaDevices
+          .getUserMedia({ audio: true, video: true })
+          .catch(() => null);
+        stream?.getTracks().forEach((track) => track.stop());
+      }
+    } catch {
+      // Разрешение не выдано — останутся безымянные устройства
+    }
+    await refreshDeviceLists();
+  }, [refreshDeviceLists]);
 
   useEffect(() => {
     let active = true;
@@ -109,12 +164,32 @@ export default function CallApp() {
       } catch {
         // Нет доступа к localStorage — остаётся значение по умолчанию
       }
+      setDevices(loadDevicePreferences());
       setSettingsLoaded(true);
       const key = new URLSearchParams(window.location.search).get("key");
       if (key) setJoinKey(formatKeyInput(key));
     }, 0);
     return () => window.clearTimeout(handle);
   }, []);
+
+  // Список устройств: перечитываем сразу и при подключении/отключении девайсов
+  useEffect(() => {
+    const handle = window.setTimeout(() => void refreshDeviceLists(), 0);
+    const handler = () => void refreshDeviceLists();
+    navigator.mediaDevices?.addEventListener?.("devicechange", handler);
+    return () => {
+      window.clearTimeout(handle);
+      navigator.mediaDevices?.removeEventListener?.("devicechange", handler);
+    };
+  }, [refreshDeviceLists]);
+
+  function updateDeviceChoice(patch: Partial<DevicePreferences>) {
+    setDevices((previous) => {
+      const next = { ...previous, ...patch };
+      saveDevicePreferences(next);
+      return next;
+    });
+  }
 
   // Настройка шумодава меняется и до входа, и в комнате (MeetingRoom
   // вызывает onNoiseFilterChange) — персистим её здесь, в общем состоянии.
@@ -177,9 +252,10 @@ export default function CallApp() {
         audioEnabled,
         videoEnabled,
         noiseFilterEnabled,
+        devices,
       });
     },
-    [audioEnabled, name, noiseFilterEnabled, videoEnabled],
+    [audioEnabled, devices, name, noiseFilterEnabled, videoEnabled],
   );
 
   async function createMeeting() {
@@ -407,6 +483,69 @@ export default function CallApp() {
                 </span>
                 <i aria-hidden="true" />
               </button>
+            </div>
+
+            <p className="device-title">Устройства связи</p>
+            <div className="device-selects" onFocus={() => void ensureDeviceLabels()}>
+              <label className="device-select">
+                <span>
+                  <Mic size={15} aria-hidden="true" />
+                  Микрофон
+                </span>
+                <select
+                  value={devices.mic ?? ""}
+                  onChange={(event) =>
+                    updateDeviceChoice({ mic: event.target.value || undefined })
+                  }
+                >
+                  <option value="">По умолчанию</option>
+                  {deviceLists.mics.map((device, index) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || `Микрофон ${index + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="device-select">
+                <span>
+                  <Video size={15} aria-hidden="true" />
+                  Камера
+                </span>
+                <select
+                  value={devices.cam ?? ""}
+                  onChange={(event) =>
+                    updateDeviceChoice({ cam: event.target.value || undefined })
+                  }
+                >
+                  <option value="">По умолчанию</option>
+                  {deviceLists.cams.map((device, index) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || `Камера ${index + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="device-select wide">
+                <span>
+                  <MonitorSpeaker size={15} aria-hidden="true" />
+                  Вывод звука
+                </span>
+                <select
+                  value={devices.speaker ?? ""}
+                  onChange={(event) =>
+                    updateDeviceChoice({
+                      speaker: event.target.value || undefined,
+                    })
+                  }
+                >
+                  <option value="">По умолчанию</option>
+                  {deviceLists.speakers.map((device, index) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || `Устройство вывода ${index + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
 
             {error && <div className="form-error">{error}</div>}

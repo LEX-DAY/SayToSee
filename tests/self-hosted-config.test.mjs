@@ -52,6 +52,26 @@ test("landing checks LiveKit health instead of a hardcoded status", async () => 
   assert.match(callApp, /NOISE_FILTER_STORAGE_KEY/);
 });
 
+test("landing offers microphone, camera and speaker pickers", async () => {
+  const [callApp, meetingRoom, devicePreferences] = await Promise.all([
+    readFile(new URL("app/CallApp.tsx", root), "utf8"),
+    readFile(new URL("app/MeetingRoom.tsx", root), "utf8"),
+    readFile(new URL("app/device-preferences.ts", root), "utf8"),
+  ]);
+  assert.match(callApp, /enumerateDevices/);
+  assert.match(callApp, /audioinput/);
+  assert.match(callApp, /videoinput/);
+  assert.match(callApp, /audiooutput/);
+  assert.match(callApp, /Вывод звука/);
+  assert.match(callApp, /device-preferences/);
+  assert.match(devicePreferences, /saytosee:devices/);
+  // Выбор применяется при входе и обновляется при смене устройства в комнате
+  assert.match(meetingRoom, /session\.devices\.mic/);
+  assert.match(meetingRoom, /session\.devices\.cam/);
+  assert.match(meetingRoom, /audioOutput/);
+  assert.match(meetingRoom, /ActiveDeviceChanged/);
+});
+
 test("proxies secure LiveKit signaling and APIs through the app origin", async () => {
   const [caddy, vmCompose] = await Promise.all([
     readFile(new URL("infra/Caddyfile.vm", root), "utf8"),

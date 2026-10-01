@@ -20,6 +20,10 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import AudioQualityIndicator from "./AudioQualityIndicator";
 import type { MeetingSession } from "./CallApp";
+import {
+  loadDevicePreferences,
+  saveDevicePreferences,
+} from "./device-preferences";
 import { krispSupport } from "./noise-filter";
 
 function roomLabel(room: string) {
@@ -138,6 +142,9 @@ export default function MeetingRoom({
             7000, 7000, 7000, 7000, 7000,
           ]),
           audioCaptureDefaults: {
+            deviceId: session.devices.mic
+              ? { ideal: session.devices.mic }
+              : undefined,
             autoGainControl: true,
             channelCount: { ideal: 1 },
             echoCancellation: true,
@@ -145,6 +152,9 @@ export default function MeetingRoom({
             voiceIsolation: nativeSuppression,
           },
           videoCaptureDefaults: {
+            deviceId: session.devices.cam
+              ? { ideal: session.devices.cam }
+              : undefined,
             // 24 fps вместо 30 — минус ~20% работы кодера; камеры без
             // 24 fps автоматически отдадут ближайший режим (обычно 30)
             resolution: {
@@ -152,6 +162,9 @@ export default function MeetingRoom({
               frameRate: 24,
             },
           },
+          audioOutput: session.devices.speaker
+            ? { deviceId: session.devices.speaker }
+            : undefined,
           publishDefaults: {
             audioPreset: AudioPresets.music,
             dtx: false,
@@ -236,8 +249,20 @@ function MeetingChrome({
       onLeave(disconnectMessage(reason) || undefined);
     };
     room.on(RoomEvent.Disconnected, handleDisconnect);
+    // Смена устройства в комнате (через меню в панели управления) обновляет
+    // сохранённый выбор — следующий вход сразу использует его
+    const handleDeviceChange = (kind: MediaDeviceKind, deviceId: string) => {
+      const current = loadDevicePreferences();
+      if (kind === "audioinput") current.mic = deviceId || undefined;
+      else if (kind === "videoinput") current.cam = deviceId || undefined;
+      else if (kind === "audiooutput") current.speaker = deviceId || undefined;
+      else return;
+      saveDevicePreferences(current);
+    };
+    room.on(RoomEvent.ActiveDeviceChanged, handleDeviceChange);
     return () => {
       room.off(RoomEvent.Disconnected, handleDisconnect);
+      room.off(RoomEvent.ActiveDeviceChanged, handleDeviceChange);
     };
   }, [onLeave, room]);
 
