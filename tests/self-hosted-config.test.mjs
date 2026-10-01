@@ -13,6 +13,7 @@ test("uses LiveKit WebRTC with a single UDP mux port and TCP fallback", async ()
 
   assert.match(packageJson, /@livekit\/components-react/);
   assert.match(packageJson, /livekit-client/);
+  assert.match(packageJson, /@livekit\/krisp-noise-filter/);
   assert.match(nextConfig, /output:\s*"standalone"/);
   assert.match(compose, /livekit\/livekit-server:v1\.13\.1/);
   assert.match(compose, /udp_port:\s*7882/);
@@ -23,6 +24,32 @@ test("uses LiveKit WebRTC with a single UDP mux port and TCP fallback", async ()
   assert.match(compose, /"7882:7882\/udp"/);
   assert.match(compose, /"7881:7881\/tcp"/);
   assert.doesNotMatch(compose, /^\s{2}relay:/m);
+});
+
+test("compresses HTTP responses in every Caddy entrypoint", async () => {
+  const [caddy, quickCaddy] = await Promise.all([
+    readFile(new URL("infra/Caddyfile.vm", root), "utf8"),
+    readFile(new URL("infra/Caddyfile.quick", root), "utf8"),
+  ]);
+  assert.match(caddy, /encode zstd gzip/);
+  assert.match(quickCaddy, /encode zstd gzip/);
+});
+
+test("landing checks LiveKit health instead of a hardcoded status", async () => {
+  const [callApp, healthRoute, liveKitAuth] = await Promise.all([
+    readFile(new URL("app/CallApp.tsx", root), "utf8"),
+    readFile(new URL("app/api/health/route.ts", root), "utf8"),
+    readFile(new URL("lib/livekit-auth.ts", root), "utf8"),
+  ]);
+  assert.match(healthRoute, /RoomService\/ListRooms/);
+  assert.match(healthRoute, /AbortSignal\.timeout\(4000\)/);
+  assert.match(liveKitAuth, /roomList\?: boolean/);
+  assert.match(callApp, /api\/health/);
+  assert.match(callApp, /SERVER_STATUS_POLL_MS/);
+  assert.match(callApp, /Сервер недоступен/);
+  // Настройка шумодава персистится в CallApp — тумблер живёт на лендинге
+  assert.match(callApp, /localStorage\.setItem/);
+  assert.match(callApp, /NOISE_FILTER_STORAGE_KEY/);
 });
 
 test("proxies secure LiveKit signaling and APIs through the app origin", async () => {
@@ -48,15 +75,35 @@ test("enables adaptive WebRTC and copies a key-based invitation link", async () 
   assert.match(callApp, /new URLSearchParams\(window\.location\.search\)/);
   assert.match(callApp, /searchParams\.set\("key", data\.key\)/);
   assert.match(callApp, /inviteUrl: inviteUrl\.toString\(\)/);
+  assert.match(callApp, /Шумодав/);
   assert.match(meetingRoom, /<LiveKitRoom/);
   assert.match(meetingRoom, /adaptiveStream:\s*true/);
   assert.match(meetingRoom, /dynacast:\s*true/);
   assert.match(meetingRoom, /simulcast:\s*true/);
   assert.match(meetingRoom, /audioPreset:\s*AudioPresets\.music/);
   assert.match(meetingRoom, /dtx:\s*false/);
-  assert.match(meetingRoom, /autoGainControl:\s*false/);
+  assert.match(meetingRoom, /autoGainControl:\s*true/);
+  assert.match(meetingRoom, /echoCancellation:\s*true/);
+  assert.match(meetingRoom, /noiseSuppression:\s*nativeSuppression/);
+  assert.match(meetingRoom, /voiceIsolation:\s*nativeSuppression/);
   assert.match(meetingRoom, /red:\s*true/);
-  assert.match(meetingRoom, /videoEncoding:\s*VideoPresets\.h540\.encoding/);
+  assert.match(meetingRoom, /videoEncoding:\s*VideoPresets\.h720\.encoding/);
+  assert.match(meetingRoom, /\.\.\.VideoPresets\.h720\.resolution/);
+  // Экономия ресурсов: аппаратный H.264 с откатом на VP8, 24 fps,
+  // снижение разрешения вместо фризов, изоляция секундного таймера
+  assert.match(meetingRoom, /videoCodec:\s*"h264"/);
+  assert.match(meetingRoom, /backupCodec:\s*true/);
+  assert.match(meetingRoom, /degradationPreference:\s*"maintain-framerate"/);
+  assert.match(meetingRoom, /frameRate:\s*24/);
+  assert.match(meetingRoom, /function CallTimer/);
+  assert.match(meetingRoom, /hardwareConcurrency/);
+  assert.match(meetingRoom, /DefaultReconnectPolicy/);
+  assert.match(meetingRoom, /stopMicTrackOnMute:\s*true/);
+  assert.match(meetingRoom, /useKrispNoiseFilter/);
+  assert.match(meetingRoom, /isKrispNoiseFilterSupported|krispSupport\(\)/);
+  // VideoConference рендерит аудио сам: второй RoomAudioRenderer дублирует звук
+  assert.doesNotMatch(meetingRoom, /<RoomAudioRenderer/);
+  assert.match(meetingRoom, /DisconnectReason/);
   const qualityIndicator = await readFile(
     new URL("app/AudioQualityIndicator.tsx", root),
     "utf8",
@@ -64,6 +111,10 @@ test("enables adaptive WebRTC and copies a key-based invitation link", async () 
   assert.match(qualityIndicator, /concealedSamples/);
   assert.match(qualityIndicator, /packetsLost/);
   assert.match(qualityIndicator, /PLC/);
+  assert.match(qualityIndicator, /currentRoundTripTime/);
+  assert.match(qualityIndicator, /RTT/);
+  // Статистика опрашивается не чаще 3 c — экономия CPU во время звонка
+  assert.match(qualityIndicator, /3_000/);
   assert.match(
     meetingRoom,
     /navigator\.clipboard\.writeText\(session\.inviteUrl\)/,

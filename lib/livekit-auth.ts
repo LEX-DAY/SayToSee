@@ -3,6 +3,7 @@ import { SignJWT } from "jose";
 type VideoGrant = {
   room?: string;
   roomCreate?: boolean;
+  roomList?: boolean;
   roomJoin?: boolean;
   roomAdmin?: boolean;
   canPublish?: boolean;

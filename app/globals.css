@@ -126,6 +126,16 @@ button {
   box-shadow: 0 0 0 4px rgba(38, 180, 134, 0.12);
 }
 
+.nav-status-down .status-dot {
+  background: #d95345;
+  box-shadow: 0 0 0 4px rgba(217, 83, 69, 0.14);
+}
+
+.nav-status-checking .status-dot {
+  background: #d7a94c;
+  box-shadow: 0 0 0 4px rgba(215, 169, 76, 0.14);
+}
+
 .hero {
   width: 100%;
   max-width: 1240px;
@@ -437,6 +447,10 @@ button {
   transform: translateX(11px);
 }
 
+.device-toggle.wide {
+  grid-column: 1 / -1;
+}
+
 .form-error {
   margin-top: 13px;
   padding: 10px 12px;
@@ -705,6 +719,7 @@ button {
 }
 
 .conference-wrap {
+  position: relative;
   min-height: 0;
   padding: 16px 18px 4px;
 }
@@ -982,6 +997,74 @@ button {
 
 .meeting-role {
   color: #758984;
+}
+
+.noise-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border: 1px solid rgba(22, 123, 98, 0.28);
+  border-radius: 99px;
+  color: var(--green-dark);
+  background: rgba(201, 241, 223, 0.16);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.noise-toggle:hover:not(:disabled) {
+  background: rgba(201, 241, 223, 0.3);
+  border-color: rgba(22, 123, 98, 0.45);
+}
+
+.noise-toggle.active {
+  background: rgba(38, 180, 134, 0.22);
+  border-color: rgba(38, 180, 134, 0.55);
+  color: #7fe4c3;
+}
+
+.noise-toggle:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.meeting-alert {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  max-width: min(92vw, 560px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 10px 14px;
+  border: 1px solid rgba(230, 124, 108, 0.4);
+  border-radius: 12px;
+  color: #ffd9d2;
+  background: rgba(64, 25, 20, 0.92);
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.35);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.meeting-alert button {
+  flex: none;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 8px;
+  color: white;
+  background: #d95345;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+.meeting-alert button:hover {
+  background: #c1443a;
 }
 
 @media (max-width: 900px) {

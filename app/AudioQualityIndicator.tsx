@@ -59,6 +59,7 @@ export default function AudioQualityIndicator() {
       let concealed = 0;
       let samples = 0;
       let maxJitterMs = 0;
+      let maxRttMs = 0;
       let intervals = 0;
 
       await Promise.all(
@@ -68,7 +69,23 @@ export default function AudioQualityIndicator() {
             const stat = raw as RTCStats & Partial<AudioStats> & {
               kind?: string;
               mediaType?: string;
+              nominated?: boolean;
+              state?: string;
+              currentRoundTripTime?: number;
             };
+            // RTT берём из успешной nominated ICE-пары того же отчёта
+            if (
+              stat.type === "candidate-pair" &&
+              stat.state === "succeeded" &&
+              stat.nominated &&
+              typeof stat.currentRoundTripTime === "number"
+            ) {
+              maxRttMs = Math.max(
+                maxRttMs,
+                stat.currentRoundTripTime * 1000,
+              );
+              return;
+            }
             if (
               stat.type !== "inbound-rtp" ||
               (stat.kind !== "audio" && stat.mediaType !== "audio")
@@ -120,24 +137,27 @@ export default function AudioQualityIndicator() {
       const lossPercent = packetTotal > 0 ? (lost / packetTotal) * 100 : 0;
       const plcPercent = samples > 0 ? (concealed / samples) * 100 : 0;
       const state: Quality["state"] =
-        plcPercent >= 1 || lossPercent >= 3 || maxJitterMs >= 80
+        plcPercent >= 1 || lossPercent >= 3 || maxJitterMs >= 80 || maxRttMs >= 300
           ? "bad"
           : plcPercent >= 0.1 ||
               lossPercent >= 1 ||
               discarded > 0 ||
-              maxJitterMs >= 40
+              maxJitterMs >= 40 ||
+              maxRttMs >= 150
             ? "warning"
             : "good";
 
       setQuality({
         state,
-        text: `PLC ${plcPercent.toFixed(1)}% · потери ${lossPercent.toFixed(1)}% · ${Math.round(maxJitterMs)} мс`,
-        title: `Скрыто семплов: ${concealed}; потеряно пакетов: ${lost}; отброшено поздних пакетов: ${discarded}`,
+        text: `PLC ${plcPercent.toFixed(1)}% · потери ${lossPercent.toFixed(1)}% · RTT ${Math.round(maxRttMs)} мс · ${Math.round(maxJitterMs)} мс`,
+        title: `Скрыто семплов: ${concealed}; потеряно пакетов: ${lost}; отброшено поздних пакетов: ${discarded}; RTT — время до сервера и обратно`,
       });
     }
 
     void measure();
-    const interval = window.setInterval(() => void measure(), 2_000);
+    // Опрос каждые 3 c: каждый проход читает RTC-статистику всех треков,
+    // чаще — лишняя нагрузка ради цифры, которая обновляется для человека
+    const interval = window.setInterval(() => void measure(), 3_000);
     return () => {
       active = false;
       window.clearInterval(interval);

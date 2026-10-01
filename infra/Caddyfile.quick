@@ -4,6 +4,8 @@
 }
 
 :8080 {
+	encode zstd gzip
+
 	@media path /media /media/*
 	reverse_proxy @media relay:8081
 

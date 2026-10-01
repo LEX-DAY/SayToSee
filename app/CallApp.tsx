@@ -2,6 +2,7 @@
 
 import {
   ArrowRight,
+  AudioLines,
   KeyRound,
   Mic,
   Video,
@@ -10,6 +11,7 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { krispSupport, NOISE_FILTER_STORAGE_KEY } from "./noise-filter";
 
 export type MeetingSession = {
   room: string;
@@ -21,9 +23,14 @@ export type MeetingSession = {
   isHost: boolean;
   audioEnabled: boolean;
   videoEnabled: boolean;
+  noiseFilterEnabled: boolean;
 };
 
 type ApiError = { error?: string };
+
+type ServerStatus = "checking" | "up" | "down";
+
+const SERVER_STATUS_POLL_MS = 20_000;
 
 const ROOM_STORAGE_PREFIX = "saytosee:host:";
 const MeetingRoom = dynamic(() => import("./MeetingRoom"), {
@@ -64,17 +71,64 @@ export default function CallApp() {
   const [joinKey, setJoinKey] = useState("");
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(false);
+  const [noiseFilterEnabled, setNoiseFilterEnabled] = useState(true);
   const [session, setSession] = useState<MeetingSession | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [serverStatus, setServerStatus] = useState<ServerStatus>("checking");
+  // Персист включаем только после загрузки сохранённых настроек, иначе
+  // первый рендер запишет дефолт поверх хранимого значения.
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    async function checkServer() {
+      try {
+        const response = await fetch("/api/health", { cache: "no-store" });
+        if (active) setServerStatus(response.ok ? "up" : "down");
+      } catch {
+        if (active) setServerStatus("down");
+      }
+    }
+    void checkServer();
+    const interval = window.setInterval(checkServer, SERVER_STATUS_POLL_MS);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
+      // Предзагружаем тяжёлый модуль AI-шумодова и читаем сохранённую настройку
+      void krispSupport();
+      try {
+        const stored =
+          window.localStorage.getItem(NOISE_FILTER_STORAGE_KEY) ?? "";
+        if (stored) setNoiseFilterEnabled(JSON.parse(stored) === true);
+      } catch {
+        // Нет доступа к localStorage — остаётся значение по умолчанию
+      }
+      setSettingsLoaded(true);
       const key = new URLSearchParams(window.location.search).get("key");
       if (key) setJoinKey(formatKeyInput(key));
     }, 0);
     return () => window.clearTimeout(handle);
   }, []);
+
+  // Настройка шумодава меняется и до входа, и в комнате (MeetingRoom
+  // вызывает onNoiseFilterChange) — персистим её здесь, в общем состоянии.
+  useEffect(() => {
+    if (!settingsLoaded) return;
+    try {
+      window.localStorage.setItem(
+        NOISE_FILTER_STORAGE_KEY,
+        JSON.stringify(noiseFilterEnabled),
+      );
+    } catch {
+      // Нет доступа к localStorage (приватный режим) — не критично
+    }
+  }, [noiseFilterEnabled, settingsLoaded]);
 
   const requestToken = useCallback(
     async ({
@@ -122,9 +176,10 @@ export default function CallApp() {
         isHost: Boolean(data.isHost),
         audioEnabled,
         videoEnabled,
+        noiseFilterEnabled,
       });
     },
-    [audioEnabled, name, videoEnabled],
+    [audioEnabled, name, noiseFilterEnabled, videoEnabled],
   );
 
   async function createMeeting() {
@@ -206,10 +261,11 @@ export default function CallApp() {
     return (
       <MeetingRoom
         session={session}
-        onLeave={() => {
+        onLeave={(message) => {
           setSession(null);
-          setError("");
+          setError(message ?? "");
         }}
+        onNoiseFilterChange={setNoiseFilterEnabled}
       />
     );
   }
@@ -224,9 +280,23 @@ export default function CallApp() {
           <Image className="brand-mark" src="/saytosee-mark.png" alt="" width={38} height={31} priority />
           <span>SayToSee</span>
         </Link>
-        <div className="nav-status">
+        <div
+          className={`nav-status nav-status-${serverStatus}`}
+          role="status"
+          title={
+            serverStatus === "up"
+              ? "Сервер встреч отвечает на запросы"
+              : serverStatus === "down"
+                ? "Сервер встреч не отвечает — попробуйте позже"
+                : undefined
+          }
+        >
           <span className="status-dot" />
-          Сервер доступен
+          {serverStatus === "up"
+            ? "Сервер доступен"
+            : serverStatus === "down"
+              ? "Сервер недоступен"
+              : "Проверяем сервер…"}
         </div>
       </nav>
 
@@ -318,6 +388,22 @@ export default function CallApp() {
                 <span>
                   <Video size={18} />
                   Камера
+                </span>
+                <i aria-hidden="true" />
+              </button>
+              <button
+                className={
+                  noiseFilterEnabled
+                    ? "device-toggle active wide"
+                    : "device-toggle wide"
+                }
+                onClick={() => setNoiseFilterEnabled((value) => !value)}
+                aria-pressed={noiseFilterEnabled}
+                title="AI-подавление шума Krisp: убирает клавиатуру, вентилятор и уличный шум, оставляя голос"
+              >
+                <span>
+                  <AudioLines size={18} />
+                  Шумодав (AI)
                 </span>
                 <i aria-hidden="true" />
               </button>

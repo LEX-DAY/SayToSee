@@ -30,6 +30,7 @@
   "dependencies": {
     "@livekit/components-react": "^2.9.23",
     "@livekit/components-styles": "^1.2.0",
+    "@livekit/krisp-noise-filter": "^0.4.5",
     "jose": "^6.2.4",
     "livekit-client": "^2.21.0",
     "lucide-react": "^1.27.0",
