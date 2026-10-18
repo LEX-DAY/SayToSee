@@ -59,7 +59,7 @@ type tokenResponse struct {
 }
 
 func NewApp() *App {
-	return &App{
+	app := &App{
 		client: &http.Client{
 			Timeout: 12 * time.Second,
 			Transport: &http.Transport{
@@ -75,6 +75,8 @@ func NewApp() *App {
 		apiBaseURL:      embeddedServerURL,
 		hostCredentials: make(map[string]string),
 	}
+	startBeaconListener()
+	return app
 }
 
 func (a *App) startup(ctx context.Context) {
@@ -82,6 +84,7 @@ func (a *App) startup(ctx context.Context) {
 }
 
 func (a *App) shutdown(context.Context) {
+	a.StopLANHost()
 	if transport, ok := a.client.Transport.(*http.Transport); ok {
 		transport.CloseIdleConnections()
 	}

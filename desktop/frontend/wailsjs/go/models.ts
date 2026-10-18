@@ -14,6 +14,48 @@ export namespace main {
 	        this.name = source["name"];
 	    }
 	}
+	export class LANHostInfo {
+	    name: string;
+	    ip: string;
+	    port: number;
+	    roomKey: string;
+	    hostName: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LANHostInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.ip = source["ip"];
+	        this.port = source["port"];
+	        this.roomKey = source["roomKey"];
+	        this.hostName = source["hostName"];
+	    }
+	}
+	export class LANHostStatus {
+	    running: boolean;
+	    httpUrl: string;
+	    signalUrl: string;
+	    roomKey: string;
+	    room: string;
+	    ipAddress: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LANHostStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.running = source["running"];
+	        this.httpUrl = source["httpUrl"];
+	        this.signalUrl = source["signalUrl"];
+	        this.roomKey = source["roomKey"];
+	        this.room = source["room"];
+	        this.ipAddress = source["ipAddress"];
+	    }
+	}
 	export class MeetingSession {
 	    room: string;
 	    key: string;

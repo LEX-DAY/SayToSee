@@ -1,3 +1,6 @@
+@import "../shared/device-menu.css";
+@import "./meeting-device-menus.css";
+
 :root {
   --ink: #101d21;
   --muted: #617074;
@@ -17,7 +20,9 @@
 html,
 body {
   margin: 0;
-  min-height: 100%;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
   background: var(--paper);
   color: var(--ink);
   font-family:
@@ -25,7 +30,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -34,7 +40,10 @@ button {
 }
 
 .landing-shell {
-  min-height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   position: relative;
   isolation: isolate;
   overflow: hidden;
@@ -81,7 +90,9 @@ button {
 }
 
 .site-nav {
-  height: 96px;
+  width: 100%;
+  height: 72px;
+  flex: none;
   max-width: 1440px;
   margin: 0 auto;
   display: flex;
@@ -139,13 +150,15 @@ button {
 .hero {
   width: 100%;
   max-width: 1240px;
-  min-height: calc(100vh - 96px);
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: minmax(0, 1.12fr) minmax(360px, 0.72fr);
-  gap: clamp(56px, 8vw, 130px);
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+  gap: clamp(24px, 4vw, 64px);
   align-items: center;
-  padding: 32px 0 58px;
+  padding: 16px 0;
 }
 
 .eyebrow {
@@ -233,17 +246,18 @@ button {
 
 .join-card-wrap {
   width: 100%;
+  min-width: 0;
   max-width: 420px;
   justify-self: end;
-  transform: translateY(18px);
 }
 
 .hero-copy {
-  transform: translateY(-65px);
+  min-width: 0;
 }
 
 .join-card {
-  padding: clamp(25px, 3vw, 36px);
+  min-width: 0;
+  padding: clamp(20px, 2vw, 28px);
   border-radius: 26px;
   background: rgba(255, 253, 249, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.9);
@@ -256,7 +270,7 @@ button {
 .card-heading {
   display: flex;
   align-items: center;
-  margin-bottom: 30px;
+  margin-bottom: 18px;
 }
 
 .card-icon {
@@ -297,7 +311,7 @@ button {
   display: flex;
   align-items: center;
   gap: 12px;
-  height: 57px;
+  height: 46px;
   padding: 6px 12px 6px 8px;
   border: 1px solid #d7dcd5;
   border-radius: 15px;
@@ -312,8 +326,8 @@ button {
 
 .avatar-preview {
   flex: 0 0 auto;
-  width: 41px;
-  height: 41px;
+  width: 32px;
+  height: 32px;
   display: grid;
   place-items: center;
   border-radius: 12px;
@@ -344,7 +358,7 @@ button {
 }
 
 .key-field {
-  height: 53px;
+  height: 44px;
   padding: 0 15px;
   display: flex;
   align-items: center;
@@ -381,17 +395,18 @@ button {
 }
 
 .device-title {
-  margin-top: 24px;
+  margin-top: 16px;
 }
 
 .device-options {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 9px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
 }
 
 .device-toggle {
-  height: 48px;
+  height: 38px;
+  min-width: 0;
   padding: 0 12px;
   display: flex;
   justify-content: space-between;
@@ -413,6 +428,7 @@ button {
 }
 
 .device-toggle i {
+  flex: none;
   position: relative;
   width: 28px;
   height: 17px;
@@ -454,15 +470,17 @@ button {
 .device-selects {
   margin-top: 10px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 9px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+  gap: 7px;
 }
 
 .device-select {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 10px 12px;
+  min-width: 0;
+  padding: 7px 9px;
   border: 1px solid #dde1dc;
   border-radius: 13px;
   background: #fafbf8;
@@ -478,15 +496,17 @@ button {
   gap: 6px;
   color: #75807f;
   font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .device-select select {
   appearance: none;
   -webkit-appearance: none;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   height: 32px;
   padding: 0 26px 0 10px;
   border: 1px solid #e2e6e1;
@@ -531,8 +551,8 @@ button {
 
 .primary-action {
   width: 100%;
-  height: 57px;
-  margin-top: 18px;
+  height: 46px;
+  margin-top: 14px;
   padding: 0 18px 0 21px;
   display: flex;
   align-items: center;
@@ -560,8 +580,8 @@ button {
 
 .secondary-action {
   width: 100%;
-  height: 49px;
-  margin-top: 10px;
+  height: 42px;
+  margin-top: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -682,13 +702,14 @@ button {
 
 /* Meeting room */
 .meeting-shell {
-  min-height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   color: #eef5f2;
   background: #0c1518;
 }
 
 .meeting-loading {
-  min-height: 100vh;
+  height: 100dvh;
   display: grid;
   place-content: center;
   justify-items: center;
@@ -703,8 +724,9 @@ button {
 }
 
 .meeting-layout {
-  height: 100vh;
-  min-height: 560px;
+  height: 100dvh;
+  min-height: 0;
+  min-width: 0;
   display: grid;
   grid-template-rows: 72px minmax(0, 1fr) 38px;
 }
@@ -712,7 +734,7 @@ button {
 .meeting-header {
   padding: 0 clamp(18px, 3vw, 38px);
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(12, 21, 24, 0.92);
@@ -730,6 +752,7 @@ button {
 
 .meeting-meta,
 .header-actions {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 11px;
@@ -789,6 +812,7 @@ button {
 .conference-wrap {
   position: relative;
   min-height: 0;
+  min-width: 0;
   padding: 16px 18px 4px;
 }
 
@@ -819,6 +843,7 @@ button {
 
 .conference-wrap .lk-control-bar {
   width: fit-content;
+  max-width: 100%;
   margin: 13px auto 5px;
   padding: 7px;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1017,7 +1042,7 @@ button {
   gap: 12px;
   color: #758984;
   font-size: 10px;
-  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .audio-quality {
@@ -1137,19 +1162,18 @@ button {
 
 @media (max-width: 900px) {
   .landing-shell {
-    overflow: auto;
+    overflow: hidden;
   }
 
   .hero {
     grid-template-columns: 1fr;
-    gap: 44px;
-    padding-top: 45px;
-    padding-bottom: 110px;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 16px;
+    padding: 12px 0;
   }
 
   .hero-copy {
     text-align: center;
-    transform: none;
   }
 
   .eyebrow {
@@ -1167,8 +1191,9 @@ button {
 
   .join-card-wrap {
     justify-self: center;
-    transform: none;
+    align-self: center;
   }
+  .hero h1 { font-size: clamp(28px, 4.5vw, 46px); line-height: 1.02; }
 
   .site-footer {
     position: absolute;
@@ -1181,22 +1206,21 @@ button {
   }
 
   .site-nav {
-    height: 78px;
+    height: 54px;
   }
 
-  .nav-status,
   .footer-architecture {
     display: none;
   }
 
   .hero {
-    padding-top: 28px;
-    gap: 36px;
+    padding: 6px 0 12px;
+    gap: 12px;
   }
 
   .hero h1 {
-    margin-top: 20px;
-    font-size: clamp(46px, 15vw, 64px);
+    margin: 0;
+    font-size: clamp(24px, 6vw, 34px);
   }
 
   .hero-lead {
@@ -1211,12 +1235,12 @@ button {
   }
 
   .join-card {
-    padding: 24px 20px;
+    padding: 18px;
     border-radius: 22px;
   }
 
   .device-options {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .site-footer {
@@ -1243,4 +1267,117 @@ button {
   .conference-wrap {
     padding: 8px 8px 2px;
   }
+}
+
+/* Device names must never define the minimum width of a layout column. */
+.prejoin-device-inline, .device-select > span, .device-selects > * { min-width: 0; }
+.prejoin-devices-button { display: none; width: 100%; min-height: 38px; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; color: var(--green-dark); background: #f3faf6; font-size: 12px; font-weight: 700; cursor: pointer; }
+.nav-status { white-space: nowrap; }
+.hero-copy h1 { overflow-wrap: anywhere; }
+
+.meeting-device-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 36px; padding: 0 12px; border: 1px solid rgba(255,255,255,.15); border-radius: 10px; color: #d7e8e0; background: #1b3029; font-size: 11px; font-weight: 700; cursor: pointer; }
+.device-settings-dialog { width: min(450px, calc(100vw - 28px)); max-height: calc(100dvh - 28px); margin: auto; padding: 24px; overflow: hidden; border: 1px solid var(--line); border-radius: 20px; color: var(--ink); background: var(--card); box-shadow: 0 24px 70px rgba(0,0,0,.3); }
+.device-settings-dialog::backdrop { background: rgba(8,20,17,.62); }
+.device-dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 16px; }
+.device-dialog-header h2 { margin: 0; font-size: 20px; }
+.device-dialog-close { flex: none; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--muted); cursor: pointer; }
+.device-dialog-fields { display: grid; gap: 12px; }
+.device-dialog-fields .device-select { width: 100%; }
+.device-dialog-fields .device-select select { height: 38px; }
+.device-dialog-message { margin: 12px 0 0; color: var(--muted); font-size: 11px; line-height: 1.4; }
+.device-dialog-error { margin: 10px 0 0; color: #a34030; font-size: 12px; line-height: 1.4; }
+.device-permission-button { margin-top: 12px; width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; color: var(--green-dark); background: #edf7f1; font: inherit; font-size: 12px; cursor: pointer; }
+button:focus-visible, select:focus-visible { outline: 2px solid #28a080; outline-offset: 2px; }
+
+@media (max-height: 820px), (max-width: 680px) {
+  .prejoin-device-inline { display: none; }
+  .prejoin-devices-button { display: flex; }
+}
+@media (max-height: 740px) {
+  .site-nav { height: 60px; }
+  .hero { padding: 10px 0; }
+  .join-card { padding: 20px; }
+  .card-heading { margin-bottom: 14px; }
+  .key-label { margin-top: 12px; }
+  .device-title { margin-top: 12px; }
+  .device-options { gap: 6px; }
+  .primary-action { margin-top: 12px; }
+}
+@media (max-width: 900px) and (max-height: 740px) {
+  .hero { display: flex; align-items: center; justify-content: center; }
+  .hero-copy { display: none; }
+}
+@media (max-width: 640px) {
+  .site-nav { height: 52px; }
+  .brand { font-size: 17px; gap: 8px; }
+  .brand-mark { width: 32px; height: 27px; }
+  .nav-status { font-size: 10px; gap: 6px; }
+  .meeting-layout { grid-template-rows: 56px minmax(0, 1fr) 34px; }
+  .meeting-header { padding: 0 12px; gap: 8px; }
+  .meeting-brand { font-size: 13px; gap: 6px; }
+  .header-actions { gap: 6px; }
+  .meeting-device-button { padding: 0 9px; }
+  .meeting-device-button span { display: none; }
+  .meeting-note { gap: 8px; }
+  .meeting-role { display: none; }
+  .conference-wrap .lk-control-bar { gap: 4px; margin: 6px auto 0; padding: 4px; }
+  .conference-wrap .lk-control-bar .lk-button { padding: 8px; font-size: 0; gap: 0; }
+  .conference-wrap .lk-control-bar .lk-button svg { width: 18px; height: 18px; }
+  .conference-wrap .lk-button-group { min-width: 0; }
+  .conference-wrap .lk-chat { width: min(320px, 100%); min-width: 0; }
+}
+@media (max-height: 650px) {
+  .join-card { padding: 16px 18px; }
+  .card-heading { margin-bottom: 10px; }
+  .card-heading span { font-size: 11px; }
+  .field-label, .device-title { margin-bottom: 5px; }
+  .name-field, .key-field { height: 40px; }
+  .key-field input { font-size: 13px; letter-spacing: .04em; }
+  .avatar-preview { width: 28px; height: 28px; }
+  .device-title { margin-top: 10px; }
+  .device-toggle { height: 34px; padding: 0 9px; }
+  .device-toggle span { gap: 5px; font-size: 10px; }
+  .device-toggle i { width: 24px; }
+  .device-toggle.active i::after { transform: translateX(7px); }
+  .prejoin-devices-button { min-height: 34px; margin-top: 10px; padding: 6px 10px; }
+  .primary-action, .secondary-action { height: 40px; font-size: 12px; }
+  .form-error { margin-top: 8px; padding: 6px 8px; font-size: 11px; }
+}
+@media (max-height: 460px) {
+  .site-nav { height: 44px; }
+  .hero { display: flex; align-items: center; justify-content: center; padding: 6px 0; }
+  .hero-copy { display: none; }
+  .join-card-wrap { max-width: 600px; }
+  .join-card { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 10px; padding: 12px 16px; }
+  .card-heading { grid-column: 1 / -1; margin: 0 0 4px; }
+  .card-heading span { display: none; }
+  .field-label { grid-column: 1; grid-row: 2; margin: 0; }
+  .name-field { grid-column: 1; grid-row: 3; }
+  .key-label { grid-column: 2; grid-row: 2; margin: 0; }
+  .key-field { grid-column: 2; grid-row: 3; padding: 0 8px; gap: 4px; }
+  .key-field > svg { display: none; }
+  .name-field { padding: 4px 8px; gap: 6px; }
+  .name-field input { font-size: 12px; }
+  .key-field input { font-size: 11px; letter-spacing: 0; }
+  .device-title { grid-column: 1 / -1; grid-row: 4; margin: 4px 0 0; }
+  .device-options { grid-column: 1 / -1; grid-row: 5; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .device-toggle.wide { grid-column: auto; }
+  .device-toggle { justify-content: center; padding: 0 5px; }
+  .device-toggle i { display: none; }
+  .device-toggle span { font-size: 9px; }
+  .device-toggle svg { width: 14px; height: 14px; }
+  .prejoin-devices-button { grid-column: 1 / -1; grid-row: 6; margin: 2px 0 0; }
+  .form-error { grid-column: 1 / -1; grid-row: 7; margin: 0; }
+  .primary-action { grid-column: 1; grid-row: 8; margin: 3px 0 0; padding: 0 8px; }
+  .secondary-action { grid-column: 2; grid-row: 8; margin: 3px 0 0; gap: 5px; font-size: 10px; }
+  .secondary-action svg { width: 14px; height: 14px; flex: none; }
+  .device-settings-dialog { padding: 14px; }
+  .device-dialog-header { margin-bottom: 8px; }
+  .device-dialog-header h2 { font-size: 17px; }
+  .device-dialog-fields { gap: 6px; }
+  .device-dialog-fields .device-select { padding: 4px 7px; gap: 3px; }
+  .device-dialog-fields .device-select select { height: 30px; }
+  .device-dialog-fields .device-combobox { --device-control-height: 30px; }
+  .device-dialog-message, .device-dialog-error { margin-top: 7px; font-size: 10px; }
+  .device-permission-button { margin-top: 7px; padding: 6px 8px; }
 }

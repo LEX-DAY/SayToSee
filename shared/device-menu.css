@@ -1,0 +1,72 @@
+.native-device-select { display: none !important; }
+.device-combobox { grid-column: 1 / -1; min-width: 0; width: 100%; }
+.device-trigger {
+  width: 100%; min-width: 0; height: var(--device-control-height, 38px);
+  display: flex; align-items: center; gap: 10px; padding: 0 11px;
+  border: 1px solid #dfe3dc; border-radius: 9px;
+  color: #13211f; background: #fff; font-family: inherit; font-size: 12px;
+  font-weight: 600; text-align: left; cursor: pointer;
+  transition: border-color .15s, box-shadow .15s, background-color .15s;
+}
+.device-trigger-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.device-trigger:hover:not(:disabled) { border-color: #9ebcac; background: #fcfefc; }
+.device-trigger:focus-visible, .is-open > .device-trigger {
+  outline: none; border-color: #13775e; box-shadow: 0 0 0 3px rgba(19, 119, 94, .1);
+}
+.device-combobox.is-open > .device-trigger { border-color: #13775e; box-shadow: none; }
+.device-combobox.is-open[data-side="bottom"] > .device-trigger { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.device-combobox.is-open[data-side="top"] > .device-trigger { border-top-left-radius: 0; border-top-right-radius: 0; }
+.device-trigger:disabled { opacity: .55; color: #687672; background: #f4f5f1; cursor: not-allowed; }
+.device-chevron {
+  flex: none; width: 16px; height: 16px; opacity: .65;
+  background: center / 16px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23687672' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+.is-open .device-chevron { transform: rotate(180deg); }
+.device-menu {
+  position: fixed; inset: auto; z-index: 1000; margin: 0; padding: 3px 0;
+  box-sizing: border-box; overflow-x: hidden; overflow-y: auto;
+  overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #bfd4c9 transparent;
+  border: 1px solid #13775e; border-radius: 9px;
+  color: #13211f; background: #fff; font-family: "Segoe UI Variable", "Segoe UI", Inter, sans-serif;
+  font-size: 12px; font-weight: 500; line-height: 1.45;
+  box-shadow: 0 3px 6px rgba(9, 35, 26, .08);
+}
+.device-menu[data-side="bottom"] { border-top: 0; border-radius: 0 0 9px 9px; }
+.device-menu[data-side="top"] { border-bottom: 0; border-radius: 9px 9px 0 0; }
+.device-menu::backdrop { background: transparent; pointer-events: none; }
+.device-menu-option {
+  min-height: 37px; display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 0; cursor: pointer;
+}
+.device-option-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.device-menu-option.is-active { color: #095943; background: #f0f7f2; }
+.device-menu-option[aria-selected="true"] { color: #095943; background: #e4f4eb; font-weight: 650; }
+.device-menu-option[aria-selected="true"].is-active { background: #d8efe2; }
+.device-menu-option[aria-disabled="true"] { color: #909b95; background: transparent; cursor: not-allowed; }
+.device-option-check { flex: none; width: 16px; height: 16px; visibility: hidden; }
+.device-menu-option[aria-selected="true"] .device-option-check {
+  visibility: visible;
+  background: center / 16px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2313775e' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m20 6-11 11-5-5'/%3E%3C/svg%3E");
+}
+.device-settings-dialog .device-dialog-fields, .device-dialog .device-dialog-fields {
+  grid-template-columns: minmax(0, 1fr); margin-top: 0; gap: 12px;
+}
+.device-settings-dialog .device-select, .device-dialog .device-select {
+  display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 9px 10px;
+  border: 1px solid #dde5de; border-radius: 12px; background: #fafbf8;
+}
+.device-settings-dialog .device-select > span, .device-dialog .device-select > span {
+  display: flex; align-items: center; gap: 6px; color: #687672;
+  font-size: 11px; font-weight: 650; letter-spacing: 0; text-transform: none;
+}
+.device-settings-dialog .device-select svg, .device-dialog .device-select svg { width: 15px; height: 15px; }
+.device-settings-dialog .device-select .device-combobox, .device-dialog .device-select .device-combobox { --device-control-height: 38px; }
+.device-settings-dialog .device-select .device-trigger, .device-dialog .device-select .device-trigger { padding: 0 11px; font-size: 12px; border-radius: 9px; }
+.device-dialog-header p { margin: 5px 0 0; color: #687672; font-size: 11px; line-height: 1.4; }
+@media (max-height: 460px) {
+  .device-settings-dialog .device-dialog-fields, .device-dialog .device-dialog-fields { gap: 6px; }
+  .device-settings-dialog .device-select, .device-dialog .device-select { gap: 3px; padding: 4px 7px; }
+  .device-settings-dialog .device-select .device-combobox, .device-dialog .device-select .device-combobox { --device-control-height: 30px; }
+}
+@media (max-width: 480px) { .device-menu { font-size: 11px; } .device-menu-option { min-height: 34px; padding: 8px 9px; } }
+@media (prefers-reduced-motion: reduce) { .device-trigger { transition: none; } }

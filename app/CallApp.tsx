@@ -5,13 +5,16 @@ import {
   AudioLines,
   KeyRound,
   Mic,
-  MonitorSpeaker,
   Video,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import DeviceSettingsDialog, {
+  DeviceSelectors,
+  type MediaDeviceLists,
+} from "./DeviceSettingsDialog";
 import {
   loadDevicePreferences,
   saveDevicePreferences,
@@ -31,12 +34,6 @@ export type MeetingSession = {
   videoEnabled: boolean;
   noiseFilterEnabled: boolean;
   devices: DevicePreferences;
-};
-
-type MediaDeviceLists = {
-  mics: MediaDeviceInfo[];
-  cams: MediaDeviceInfo[];
-  speakers: MediaDeviceInfo[];
 };
 
 const EMPTY_DEVICE_LISTS: MediaDeviceLists = {
@@ -101,7 +98,9 @@ export default function CallApp() {
   const [deviceLists, setDeviceLists] =
     useState<MediaDeviceLists>(EMPTY_DEVICE_LISTS);
   const [devices, setDevices] = useState<DevicePreferences>({});
-  const labelPermissionTried = useRef(false);
+  const labelPermissionTried = useRef(new Set<MediaDeviceKind>());
+  const [deviceError, setDeviceError] = useState("");
+  const [outputSupported, setOutputSupported] = useState(true);
 
   const refreshDeviceLists = useCallback(async (): Promise<MediaDeviceLists> => {
     try {
@@ -120,19 +119,24 @@ export default function CallApp() {
 
   // До выдачи разрешения браузер скрывает названия устройств; запрашиваем
   // доступ один раз, когда пользователь трогает селекты, и перечитываем список.
-  const ensureDeviceLabels = useCallback(async () => {
-    if (labelPermissionTried.current) return;
-    labelPermissionTried.current = true;
+  const ensureDeviceLabels = useCallback(async (kind: MediaDeviceKind) => {
+    const permissionKind = kind === "audiooutput" ? "audioinput" : kind;
+    if (labelPermissionTried.current.has(permissionKind)) return;
+    labelPermissionTried.current.add(permissionKind);
     try {
       const list = await navigator.mediaDevices.enumerateDevices();
-      if (list.some((device) => !device.label)) {
-        const stream = await navigator.mediaDevices
-          .getUserMedia({ audio: true, video: true })
-          .catch(() => null);
-        stream?.getTracks().forEach((track) => track.stop());
+      if (list.some((device) => device.kind === kind && !device.label)) {
+        // Запрашиваем только выбранный тип: отсутствие камеры не должно
+        // мешать выбору микрофона или колонок. Превью сразу освобождаем.
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: permissionKind === "audioinput",
+          video: permissionKind === "videoinput",
+        });
+        stream.getTracks().forEach((track) => track.stop());
       }
+      setDeviceError("");
     } catch {
-      // Разрешение не выдано — останутся безымянные устройства
+      setDeviceError("Разрешите доступ к устройству в браузере, чтобы увидеть его название.");
     }
     await refreshDeviceLists();
   }, [refreshDeviceLists]);
@@ -167,6 +171,7 @@ export default function CallApp() {
         // Нет доступа к localStorage — остаётся значение по умолчанию
       }
       setDevices(loadDevicePreferences());
+      setOutputSupported("setSinkId" in HTMLMediaElement.prototype);
       setSettingsLoaded(true);
       const key = new URLSearchParams(window.location.search).get("key");
       if (key) setJoinKey(formatKeyInput(key));
@@ -192,6 +197,15 @@ export default function CallApp() {
       return next;
     });
   }
+
+  const updateMeetingDevices = useCallback((patch: Partial<DevicePreferences>) => {
+    setDevices((previous) => {
+      const next = { ...previous, ...patch };
+      saveDevicePreferences(next);
+      return next;
+    });
+    setSession((current) => current ? { ...current, devices: { ...current.devices, ...patch } } : current);
+  }, []);
 
   // Настройка шумодава меняется и до входа, и в комнате (MeetingRoom
   // вызывает onNoiseFilterChange) — персистим её здесь, в общем состоянии.
@@ -226,11 +240,13 @@ export default function CallApp() {
           ? devices.cam
           : undefined,
         speaker:
-          devices.speaker &&
+          outputSupported && devices.speaker &&
           lists.speakers.some((d) => d.deviceId === devices.speaker)
             ? devices.speaker
             : undefined,
       };
+      setDevices(wiredDevices);
+      saveDevicePreferences(wiredDevices);
       const response = await fetch("/api/token", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -273,7 +289,7 @@ export default function CallApp() {
         devices: wiredDevices,
       });
     },
-    [audioEnabled, devices, name, noiseFilterEnabled, refreshDeviceLists, videoEnabled],
+    [audioEnabled, devices, name, noiseFilterEnabled, outputSupported, refreshDeviceLists, videoEnabled],
   );
 
   async function createMeeting() {
@@ -360,6 +376,7 @@ export default function CallApp() {
           setError(message ?? "");
         }}
         onNoiseFilterChange={setNoiseFilterEnabled}
+        onDevicesChange={updateMeetingDevices}
       />
     );
   }
@@ -503,68 +520,28 @@ export default function CallApp() {
               </button>
             </div>
 
-            <p className="device-title">Устройства связи</p>
-            <div className="device-selects" onFocus={() => void ensureDeviceLabels()}>
-              <label className="device-select">
-                <span>
-                  <Mic size={15} aria-hidden="true" />
-                  Микрофон
-                </span>
-                <select
-                  value={devices.mic ?? ""}
-                  onChange={(event) =>
-                    updateDeviceChoice({ mic: event.target.value || undefined })
-                  }
-                >
-                  <option value="">По умолчанию</option>
-                  {deviceLists.mics.map((device, index) => (
-                    <option key={device.deviceId} value={device.deviceId}>
-                      {device.label || `Микрофон ${index + 1}`}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="device-select">
-                <span>
-                  <Video size={15} aria-hidden="true" />
-                  Камера
-                </span>
-                <select
-                  value={devices.cam ?? ""}
-                  onChange={(event) =>
-                    updateDeviceChoice({ cam: event.target.value || undefined })
-                  }
-                >
-                  <option value="">По умолчанию</option>
-                  {deviceLists.cams.map((device, index) => (
-                    <option key={device.deviceId} value={device.deviceId}>
-                      {device.label || `Камера ${index + 1}`}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="device-select wide">
-                <span>
-                  <MonitorSpeaker size={15} aria-hidden="true" />
-                  Вывод звука
-                </span>
-                <select
-                  value={devices.speaker ?? ""}
-                  onChange={(event) =>
-                    updateDeviceChoice({
-                      speaker: event.target.value || undefined,
-                    })
-                  }
-                >
-                  <option value="">По умолчанию</option>
-                  {deviceLists.speakers.map((device, index) => (
-                    <option key={device.deviceId} value={device.deviceId}>
-                      {device.label || `Устройство вывода ${index + 1}`}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            <div className="prejoin-device-inline">
+              <p className="device-title">Устройства связи</p>
+              <DeviceSelectors
+                devices={devices}
+                lists={deviceLists}
+                onChange={updateDeviceChoice}
+                onFocus={(kind) => void ensureDeviceLabels(kind)}
+                outputSupported={outputSupported}
+              />
+              {!outputSupported && <p className="device-dialog-message">Вывод звука: устройство из настроек системы.</p>}
+              {deviceError && <p className="device-dialog-error" role="alert">{deviceError}</p>}
             </div>
+            <DeviceSettingsDialog
+              triggerClassName="prejoin-devices-button"
+              devices={devices}
+              lists={deviceLists}
+              onChange={updateDeviceChoice}
+              onOpen={() => void refreshDeviceLists()}
+              onFocus={(kind) => void ensureDeviceLabels(kind)}
+              outputSupported={outputSupported}
+              error={deviceError}
+            />
 
             {error && <div className="form-error">{error}</div>}
 

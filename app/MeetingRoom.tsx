@@ -15,15 +15,14 @@ import {
   DefaultReconnectPolicy,
   DisconnectReason,
   RoomEvent,
+  supportsAudioOutputSelection,
   VideoPresets,
 } from "livekit-client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AudioQualityIndicator from "./AudioQualityIndicator";
 import type { MeetingSession } from "./CallApp";
-import {
-  loadDevicePreferences,
-  saveDevicePreferences,
-} from "./device-preferences";
+import type { DevicePreferences } from "./device-preferences";
+import DeviceSettingsDialog, { type MediaDeviceLists } from "./DeviceSettingsDialog";
 import { krispSupport } from "./noise-filter";
 
 function roomLabel(room: string) {
@@ -71,10 +70,12 @@ export default function MeetingRoom({
   session,
   onLeave,
   onNoiseFilterChange,
+  onDevicesChange,
 }: {
   session: MeetingSession;
   onLeave: (message?: string) => void;
   onNoiseFilterChange: (enabled: boolean) => void;
+  onDevicesChange: (devices: DevicePreferences) => void;
 }) {
   const [noiseFilterSupported, setNoiseFilterSupported] = useState<
     boolean | null
@@ -198,6 +199,7 @@ export default function MeetingRoom({
           noiseFilterSupported={noiseFilterSupported}
           noiseFilterEnabled={noiseFilterEnabled}
           onNoiseFilterToggle={() => onNoiseFilterChange(!noiseFilterEnabled)}
+          onDevicesChange={onDevicesChange}
           connectionError={connectionError}
           onReconnect={() => {
             setConnectionError("");
@@ -217,6 +219,7 @@ function MeetingChrome({
   onNoiseFilterToggle,
   connectionError,
   onReconnect,
+  onDevicesChange,
 }: {
   session: MeetingSession;
   onLeave: (message?: string) => void;
@@ -225,6 +228,7 @@ function MeetingChrome({
   onNoiseFilterToggle: () => void;
   connectionError: string;
   onReconnect: () => void;
+  onDevicesChange: (devices: DevicePreferences) => void;
 }) {
   const participants = useParticipants();
   const room = useRoomContext();
@@ -252,20 +256,8 @@ function MeetingChrome({
       onLeave(disconnectMessage(reason) || undefined);
     };
     room.on(RoomEvent.Disconnected, handleDisconnect);
-    // Смена устройства в комнате (через меню в панели управления) обновляет
-    // сохранённый выбор — следующий вход сразу использует его
-    const handleDeviceChange = (kind: MediaDeviceKind, deviceId: string) => {
-      const current = loadDevicePreferences();
-      if (kind === "audioinput") current.mic = deviceId || undefined;
-      else if (kind === "videoinput") current.cam = deviceId || undefined;
-      else if (kind === "audiooutput") current.speaker = deviceId || undefined;
-      else return;
-      saveDevicePreferences(current);
-    };
-    room.on(RoomEvent.ActiveDeviceChanged, handleDeviceChange);
     return () => {
       room.off(RoomEvent.Disconnected, handleDisconnect);
-      room.off(RoomEvent.ActiveDeviceChanged, handleDeviceChange);
     };
   }, [onLeave, room]);
 
@@ -283,6 +275,7 @@ function MeetingChrome({
           </span>
         </div>
         <div className="header-actions">
+          <InCallDeviceSettings devices={session.devices} onDevicesChange={onDevicesChange} />
           <span className="participant-count">
             <Users size={16} />
             {participants.length}/10
@@ -328,6 +321,150 @@ function MeetingChrome({
         </span>
       </div>
     </div>
+  );
+}
+
+function InCallDeviceSettings({
+  devices,
+  onDevicesChange,
+}: {
+  devices: DevicePreferences;
+  onDevicesChange: (devices: DevicePreferences) => void;
+}) {
+  const room = useRoomContext();
+  const [lists, setLists] = useState<MediaDeviceLists>({ mics: [], cams: [], speakers: [] });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const switchingKind = useRef<MediaDeviceKind | null>(null);
+  const devicesChangedDuringSwitch = useRef(false);
+  const mounted = useRef(false);
+  const permissionTried = useRef(new Set<MediaDeviceKind>());
+
+  const refresh = useCallback(async () => {
+    try {
+      const available = await navigator.mediaDevices.enumerateDevices();
+      if (!mounted.current) return;
+      setLists({
+        mics: available.filter((device) => device.kind === "audioinput"),
+        cams: available.filter((device) => device.kind === "videoinput"),
+        speakers: available.filter((device) => device.kind === "audiooutput"),
+      });
+    } catch {
+      if (mounted.current) setError("Не удалось получить список устройств. Проверьте разрешения браузера.");
+    }
+  }, []);
+
+  useEffect(() => {
+    mounted.current = true;
+    const handle = window.setTimeout(() => void refresh(), 0);
+    const onDevicesChanged = () => {
+      // Перечитаем список после завершения переключения или восстановления,
+      // чтобы hotplug не зафиксировал промежуточное состояние.
+      if (switchingKind.current) devicesChangedDuringSwitch.current = true;
+      else void refresh();
+    };
+    const handleDeviceChange = (kind: MediaDeviceKind, deviceId: string) => {
+      if (!mounted.current || switchingKind.current === kind) return;
+      const preferences = { audioinput: "mic", videoinput: "cam", audiooutput: "speaker" } as const;
+      onDevicesChange({
+        [preferences[kind]]: deviceId && deviceId !== "default" ? deviceId : undefined,
+      });
+    };
+    const onDisconnected = () => { mounted.current = false; };
+    room.on(RoomEvent.MediaDevicesChanged, onDevicesChanged);
+    room.on(RoomEvent.ActiveDeviceChanged, handleDeviceChange);
+    room.on(RoomEvent.Disconnected, onDisconnected);
+    return () => {
+      mounted.current = false;
+      window.clearTimeout(handle);
+      room.off(RoomEvent.MediaDevicesChanged, onDevicesChanged);
+      room.off(RoomEvent.ActiveDeviceChanged, handleDeviceChange);
+      room.off(RoomEvent.Disconnected, onDisconnected);
+    };
+  }, [onDevicesChange, refresh, room]);
+
+  async function ensureLabels(kind: MediaDeviceKind) {
+    const permissionKind = kind === "audiooutput" ? "audioinput" : kind;
+    if (permissionTried.current.has(permissionKind)) return;
+    permissionTried.current.add(permissionKind);
+    try {
+      const available = await navigator.mediaDevices.enumerateDevices();
+      if (!mounted.current) return;
+      if (available.some((device) => device.kind === kind && !device.label)) {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: permissionKind === "audioinput",
+          video: permissionKind === "videoinput",
+        });
+        stream.getTracks().forEach((track) => track.stop());
+      }
+      await refresh();
+    } catch {
+      if (mounted.current) setError("Разрешите доступ к устройству в браузере, чтобы увидеть его название.");
+    }
+  }
+
+  async function changeDevice(patch: Partial<DevicePreferences>) {
+    if (switchingKind.current || !mounted.current) return;
+    const preference = Object.keys(patch)[0] as keyof DevicePreferences;
+    const kinds = { mic: "audioinput", cam: "videoinput", speaker: "audiooutput" } as const;
+    const kind = kinds[preference];
+    const defaultId = kind === "audioinput" ? "default" : "";
+    const previousChoice = devices[preference];
+    const previousDeviceId = room.getActiveDevice(kind) ?? previousChoice ?? defaultId;
+    switchingKind.current = kind;
+    devicesChangedDuringSwitch.current = false;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const deviceId = patch[preference] ?? defaultId;
+      const changed = await room.switchActiveDevice(kind, deviceId, Boolean(patch[preference]));
+      if (!changed) throw new Error("Устройство не удалось переключить.");
+      if (!mounted.current) return;
+      onDevicesChange(patch);
+      setMessage("Устройство переключено. Выбор сохранён для следующей встречи.");
+    } catch {
+      if (!mounted.current) return;
+      // LiveKit восстанавливает options, но уже переключённые remote tracks
+      // могут остаться на новом sink. Возвращаем устройство через тот же API.
+      let restored = false;
+      try {
+        restored = await room.switchActiveDevice(kind, previousDeviceId, Boolean(previousDeviceId && previousDeviceId !== "default"));
+      } catch {
+        // Например, прежнюю гарнитуру отключили во время переключения.
+      }
+      if (!mounted.current) return;
+      onDevicesChange({ [preference]: previousChoice });
+      setError(restored
+        ? "Не удалось переключить устройство. Прежнее устройство восстановлено. Проверьте подключение и разрешения."
+        : "Не удалось переключить или восстановить устройство. Проверьте подключение и выберите доступное устройство.");
+    } finally {
+      if (mounted.current) {
+        await refresh();
+        if (mounted.current && devicesChangedDuringSwitch.current) {
+          const activeId = room.getActiveDevice(kind);
+          onDevicesChange({ [preference]: activeId && activeId !== "default" ? activeId : undefined });
+        }
+      }
+      switchingKind.current = null;
+      if (mounted.current) setBusy(false);
+    }
+  }
+
+  return (
+    <DeviceSettingsDialog
+      triggerClassName="meeting-device-button"
+      devices={devices}
+      lists={lists}
+      onChange={(patch) => void changeDevice(patch)}
+      onFocus={(kind) => void ensureLabels(kind)}
+      onOpen={() => void refresh()}
+      busy={busy}
+      outputSupported={supportsAudioOutputSelection()}
+      error={error}
+      message={busy ? "Переключаем устройство…" : message}
+    />
   );
 }
 

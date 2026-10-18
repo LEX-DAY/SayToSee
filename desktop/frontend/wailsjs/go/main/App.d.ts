@@ -6,4 +6,14 @@ export function CheckServer():Promise<void>;
 
 export function CreateRoom(arg1:string):Promise<main.MeetingSession>;
 
+export function DiscoverLANHosts():Promise<Array<main.LANHostInfo>>;
+
+export function GetLANHostStatus():Promise<main.LANHostStatus>;
+
+export function JoinLANHost(arg1:string,arg2:number,arg3:string,arg4:string):Promise<main.MeetingSession>;
+
 export function JoinRoom(arg1:main.JoinRequest):Promise<main.MeetingSession>;
+
+export function StartLANHost(arg1:string):Promise<main.MeetingSession>;
+
+export function StopLANHost():Promise<void>;

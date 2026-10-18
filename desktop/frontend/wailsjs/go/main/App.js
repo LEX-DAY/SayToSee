@@ -10,6 +10,26 @@ export function CreateRoom(arg1) {
   return window['go']['main']['App']['CreateRoom'](arg1);
 }
 
+export function DiscoverLANHosts() {
+  return window['go']['main']['App']['DiscoverLANHosts']();
+}
+
+export function GetLANHostStatus() {
+  return window['go']['main']['App']['GetLANHostStatus']();
+}
+
+export function JoinLANHost(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['JoinLANHost'](arg1, arg2, arg3, arg4);
+}
+
 export function JoinRoom(arg1) {
   return window['go']['main']['App']['JoinRoom'](arg1);
+}
+
+export function StartLANHost(arg1) {
+  return window['go']['main']['App']['StartLANHost'](arg1);
+}
+
+export function StopLANHost() {
+  return window['go']['main']['App']['StopLANHost']();
 }

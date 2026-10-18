@@ -1,5 +1,6 @@
 import "./style.css";
 import logoMark from "./assets/saytosee-mark.png";
+import { enhanceDeviceSelect } from "../../../shared/device-menu";
 
 import type {
   Participant,
@@ -15,8 +16,10 @@ import {
   MonitorSpeaker,
   MonitorUp,
   Phone,
+  Settings,
   Users,
   Video,
+  X,
 } from "lucide";
 import { CheckServer, CreateRoom, JoinRoom } from "../wailsjs/go/main/App";
 
@@ -65,18 +68,28 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
           <div class="device-picker">
             <span>Устройства связи</span>
             <div class="device-grid">
-              <label class="device-select"><i data-lucide="mic"></i>
-                <select id="device-mic"><option value="">По умолчанию</option></select>
-              </label>
-              <label class="device-select"><i data-lucide="video"></i>
-                <select id="device-cam"><option value="">По умолчанию</option></select>
-              </label>
-              <label class="device-select wide"><i data-lucide="monitor-speaker"></i>
-                <select id="device-speaker"><option value="">По умолчанию</option></select>
-              </label>
+              <div class="device-select"><i data-lucide="mic"></i>
+                <span>Микрофон</span><select id="device-mic" aria-label="Микрофон"><option value="">По умолчанию</option></select>
+              </div>
+              <div class="device-select"><i data-lucide="video"></i>
+                <span>Камера</span><select id="device-cam" aria-label="Камера"><option value="">По умолчанию</option></select>
+              </div>
+              <div class="device-select wide"><i data-lucide="monitor-speaker"></i>
+                <span>Вывод звука</span><select id="device-speaker" aria-label="Динамики или наушники"><option value="">По умолчанию</option></select>
+              </div>
             </div>
+            <small id="lobby-device-note" class="device-note"></small>
           </div>
           <div id="lobby-error" class="form-error" role="alert"></div>
+          <div id="lan-block" class="lan-block">
+            <span>Локальная сеть · без интернета</span>
+            <button type="button" id="lan-host-button" class="secondary-button"><i data-lucide="wifi"></i><span>Создать локальную встречу</span></button>
+            <div id="lan-discovery" class="lan-discovery">
+              <small>Встречи в этой сети</small>
+              <div id="lan-list" class="lan-list"></div>
+              <button type="button" id="lan-rescan" class="lan-rescan">Искать снова</button>
+            </div>
+          </div>
           <button id="join-button" class="primary-button" type="submit"><span>Войти по ключу</span><b>→</b></button>
           <button id="create-button" class="secondary-button" type="button"><i data-lucide="video"></i><span>Создать новую комнату</span></button>
         </form>
@@ -102,18 +115,32 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
           <button id="audio-control" class="call-control active" aria-label="Микрофон"><i data-lucide="mic"></i><span>Микрофон</span></button>
           <button id="video-control" class="call-control" aria-label="Камера"><i data-lucide="video"></i><span>Камера</span></button>
           <button id="screen-control" class="call-control" aria-label="Показ экрана"><i data-lucide="monitor-up"></i><span>Экран</span></button>
+          <button id="devices-control" class="call-control" aria-label="Настройки устройств" aria-haspopup="dialog" aria-controls="devices-dialog"><i data-lucide="settings"></i><span>Устройства</span></button>
           <button id="leave-control" class="call-control hangup" aria-label="Завершить звонок"><i data-lucide="phone"></i><span>Выйти</span></button>
         </div>
         <div class="quality-note"><i data-lucide="leaf"></i><span>Экономный режим</span></div>
       </footer>
     </section>
 
+    <dialog id="devices-dialog" class="device-dialog" aria-labelledby="devices-title" aria-describedby="devices-note">
+      <div class="device-dialog-header">
+        <div><h2 id="devices-title">Устройства связи</h2><p>Выбор применяется сразу во время звонка</p></div>
+        <button type="button" id="devices-close" class="icon-button" aria-label="Закрыть настройки"><i data-lucide="x"></i></button>
+      </div>
+      <div class="device-dialog-fields">
+        <div class="device-select"><span><i data-lucide="mic"></i>Микрофон</span><select id="call-device-mic" aria-label="Микрофон"><option value="">По умолчанию</option></select></div>
+        <div class="device-select"><span><i data-lucide="video"></i>Камера</span><select id="call-device-cam" aria-label="Камера"><option value="">По умолчанию</option></select></div>
+        <div class="device-select"><span><i data-lucide="monitor-speaker"></i>Вывод звука</span><select id="call-device-speaker" aria-label="Динамики или наушники"><option value="">По умолчанию</option></select></div>
+      </div>
+      <p id="devices-note" class="device-note">Выбранные устройства сохраняются для следующих встреч.</p>
+      <div id="devices-error" class="form-error" role="alert"></div>
+    </dialog>
     <div id="toast" class="toast" role="status"></div>
   </main>
 `;
 
 createIcons({
-  icons: { Copy, Leaf, Mic, MonitorSpeaker, MonitorUp, Phone, Users, Video },
+  icons: { Copy, Leaf, Mic, MonitorSpeaker, MonitorUp, Phone, Settings, Users, Video, X },
 });
 
 const $ = <T extends HTMLElement>(selector: string) =>
@@ -131,6 +158,12 @@ const videoPrejoin = $<HTMLButtonElement>("#prejoin-video");
 const micSelect = $<HTMLSelectElement>("#device-mic");
 const camSelect = $<HTMLSelectElement>("#device-cam");
 const speakerSelect = $<HTMLSelectElement>("#device-speaker");
+const devicesDialog = $<HTMLDialogElement>("#devices-dialog");
+const devicesControl = $<HTMLButtonElement>("#devices-control");
+const devicesError = $("#devices-error");
+const callMicSelect = $<HTMLSelectElement>("#call-device-mic");
+const callCamSelect = $<HTMLSelectElement>("#call-device-cam");
+const callSpeakerSelect = $<HTMLSelectElement>("#call-device-speaker");
 const serverStatus = $("#server-status");
 const tileGrid = $("#tile-grid");
 const toast = $("#toast");
@@ -141,20 +174,70 @@ let session: Session | null = null;
 let audioEnabled = true;
 let videoEnabled = false;
 let screenEnabled = false;
+let switchingScreen = false;
 let activeSpeakers = new Set<string>();
 let toastTimer = 0;
 
+// Страница работает в двух режимах: внутри Wails (полный доступ к Go-методам)
+// и как обычная страница, которую локальный хост отдаёт браузерам той же сети.
+const inWails = typeof window !== "undefined" && "go" in window;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const lanApp = (): any => (window as any).go?.main?.App;
+let lanHosting = false;
+
 // Выбор устройств связи: тот же ключ localStorage, что и в веб-версии
 type DevicePrefs = { mic?: string; cam?: string; speaker?: string };
+type DeviceKey = keyof DevicePrefs;
 const DEVICES_KEY = "saytosee:devices";
 let devicePrefs: DevicePrefs = (() => {
   try {
-    return JSON.parse(localStorage.getItem(DEVICES_KEY) || "{}") as DevicePrefs;
+    const stored: unknown = JSON.parse(localStorage.getItem(DEVICES_KEY) || "{}");
+    if (!stored || typeof stored !== "object" || Array.isArray(stored)) return {};
+    const prefs: DevicePrefs = {};
+    for (const key of ["mic", "cam", "speaker"] as const) {
+      const value = (stored as Record<string, unknown>)[key];
+      if (typeof value === "string" && value && value !== "default") prefs[key] = value;
+    }
+    return prefs;
   } catch {
     return {};
   }
 })();
-let deviceLabelsTried = false;
+const deviceKinds: Record<DeviceKey, MediaDeviceKind> = {
+  mic: "audioinput", cam: "videoinput", speaker: "audiooutput",
+};
+const deviceTitles: Record<DeviceKey, string> = {
+  mic: "микрофон", cam: "камеру", speaker: "устройство вывода",
+};
+const deviceSelects: Record<DeviceKey, HTMLSelectElement[]> = {
+  mic: [micSelect, callMicSelect],
+  cam: [camSelect, callCamSelect],
+  speaker: [speakerSelect, callSpeakerSelect],
+};
+const deviceMenus = new Map<HTMLSelectElement, ReturnType<typeof enhanceDeviceSelect>>();
+for (const selects of Object.values(deviceSelects)) {
+  for (const select of selects) {
+    deviceMenus.set(select, enhanceDeviceSelect(select, {
+      label: select.getAttribute("aria-label") || "Устройство связи",
+    }));
+  }
+}
+const supportsAudioOutput = "setSinkId" in HTMLMediaElement.prototype;
+const switchingDevices = new Set<DeviceKey>();
+const labelRequests = new Map<"audio" | "video", Promise<void>>();
+let availableDevices: MediaDeviceInfo[] = [];
+const knownDeviceIds = new Set<string>();
+let deviceRefresh: Promise<void> | null = null;
+let deviceChangePending = false;
+
+if (!supportsAudioOutput) {
+  for (const select of deviceSelects.speaker) {
+    select.disabled = true;
+    deviceMenus.get(select)?.refresh();
+  }
+  $("#lobby-device-note").textContent = "Для вывода звука используется устройство Windows по умолчанию.";
+  $("#devices-note").textContent = "Для вывода звука используется устройство Windows по умолчанию. Остальной выбор сохраняется.";
+}
 
 function saveDevicePrefs() {
   try {
@@ -165,13 +248,23 @@ function saveDevicePrefs() {
 }
 
 function syncSelectValue(select: HTMLSelectElement, deviceId?: string) {
-  select.value = deviceId && select.querySelector(`option[value="${CSS.escape(deviceId)}"]`)
+  select.value = deviceId && Array.from(select.options).some((option) => option.value === deviceId)
     ? deviceId
     : "";
+  select.title = Array.from(select.options).find((option) => option.value === select.value)?.textContent || "По умолчанию";
+  deviceMenus.get(select)?.refresh();
 }
 
-function hasSelectedOption(select: HTMLSelectElement, deviceId?: string) {
-  return Boolean(deviceId && select.querySelector(`option[value="${CSS.escape(deviceId)}"]`));
+function availableDevice(key: DeviceKey, deviceId?: string) {
+  return Boolean(deviceId && availableDevices.some((device) =>
+    device.kind === deviceKinds[key] && device.deviceId === deviceId,
+  ));
+}
+
+function syncDeviceSelects() {
+  for (const key of ["mic", "cam", "speaker"] as const) {
+    for (const select of deviceSelects[key]) syncSelectValue(select, devicePrefs[key]);
+  }
 }
 
 function fillDeviceSelect(
@@ -179,51 +272,192 @@ function fillDeviceSelect(
   devices: MediaDeviceInfo[],
   fallbackLabel: string,
 ) {
-  const previous = select.value;
   select.replaceChildren();
   const defaultOption = document.createElement("option");
   defaultOption.value = "";
   defaultOption.textContent = "По умолчанию";
   select.appendChild(defaultOption);
-  devices.forEach((device, index) => {
+  devices.filter((device) => device.deviceId && device.deviceId !== "default")
+    .forEach((device, index) => {
     const option = document.createElement("option");
     option.value = device.deviceId;
     option.textContent = device.label || `${fallbackLabel} ${index + 1}`;
     select.appendChild(option);
-  });
-  if (previous) syncSelectValue(select, previous);
+    });
+  deviceMenus.get(select)?.refresh();
 }
 
 async function refreshDeviceLists() {
   try {
-    const list = await navigator.mediaDevices.enumerateDevices();
-    fillDeviceSelect(micSelect, list.filter((d) => d.kind === "audioinput"), "Микрофон");
-    fillDeviceSelect(camSelect, list.filter((d) => d.kind === "videoinput"), "Камера");
-    fillDeviceSelect(speakerSelect, list.filter((d) => d.kind === "audiooutput"), "Устройство вывода");
-    syncSelectValue(micSelect, devicePrefs.mic);
-    syncSelectValue(camSelect, devicePrefs.cam);
-    syncSelectValue(speakerSelect, devicePrefs.speaker);
+    availableDevices = await navigator.mediaDevices.enumerateDevices();
+    for (const device of availableDevices) {
+      if (device.deviceId) knownDeviceIds.add(`${device.kind}:${device.deviceId}`);
+    }
+    for (const key of ["mic", "cam", "speaker"] as const) {
+      const devices = availableDevices.filter((device) => device.kind === deviceKinds[key]);
+      const label = key === "mic" ? "Микрофон" : key === "cam" ? "Камера" : "Устройство вывода";
+      for (const select of deviceSelects[key]) fillDeviceSelect(select, devices, label);
+    }
+    syncDeviceSelects();
   } catch {
     // enumerateDevices недоступен — остаются значения по умолчанию
   }
 }
 
-// До выдачи разрешения браузер скрывает названия устройств
-async function ensureDeviceLabels() {
-  if (deviceLabelsTried) return;
-  deviceLabelsTried = true;
-  try {
-    const list = await navigator.mediaDevices.enumerateDevices();
-    if (list.some((device) => !device.label)) {
-      const stream = await navigator.mediaDevices
-        .getUserMedia({ audio: true, video: true })
-        .catch(() => null);
-      stream?.getTracks().forEach((track) => track.stop());
+// Запрашиваем только нужный тип: отсутствие камеры не блокирует выбор микрофона.
+async function ensureDeviceLabels(key: DeviceKey) {
+  const mediaKind = key === "cam" ? "video" : "audio";
+  const pending = labelRequests.get(mediaKind);
+  if (pending) return pending;
+  const request = (async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const inputKind = mediaKind === "video" ? "videoinput" : "audioinput";
+      if (devices.some((device) => device.kind === inputKind && !device.label)) {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: mediaKind === "audio", video: mediaKind === "video",
+        });
+        stream.getTracks().forEach((track) => track.stop());
+      }
+    } catch {
+      // При отказе пользователь всё ещё может выбрать системное устройство.
     }
-  } catch {
-    // Разрешение не выдано — останутся безымянные устройства
+    await refreshDeviceLists();
+  })();
+  labelRequests.set(mediaKind, request);
+  try {
+    await request;
+  } finally {
+    labelRequests.delete(mediaKind);
   }
-  await refreshDeviceLists();
+}
+
+function setDeviceBusy(key: DeviceKey, busy: boolean) {
+  for (const select of deviceSelects[key]) {
+    select.disabled = busy || (key === "speaker" && !supportsAudioOutput);
+    deviceMenus.get(select)?.refresh();
+  }
+  if (key === "mic") $<HTMLButtonElement>("#audio-control").disabled = busy;
+  if (key === "cam") $<HTMLButtonElement>("#video-control").disabled = busy;
+}
+
+function sdkDeviceId(key: DeviceKey, deviceId?: string) {
+  return deviceId || (key === "mic" ? "default" : "");
+}
+
+function switchRoomDevice(currentRoom: Room, key: DeviceKey, deviceId?: string) {
+  // У камер нет синтетического ID "default": пустой ideal выбирает камеру браузера.
+  return currentRoom.switchActiveDevice(deviceKinds[key], sdkDeviceId(key, deviceId),
+    Boolean(deviceId) || key === "mic");
+}
+
+async function changeDevice(key: DeviceKey, deviceId: string) {
+  if (switchingDevices.has(key)) return;
+  const currentRoom = room;
+  const previousPreference = devicePrefs[key];
+  switchingDevices.add(key);
+  setDeviceBusy(key, true);
+  devicesError.textContent = "";
+  try {
+    if (currentRoom) {
+      const changed = await switchRoomDevice(currentRoom, key, deviceId);
+      if (!changed) throw new Error("Устройство не удалось активировать.");
+      if (room !== currentRoom) return;
+    }
+    devicePrefs[key] = deviceId || undefined;
+    saveDevicePrefs();
+    syncDeviceSelects();
+  } catch (reason) {
+    // SDK может успеть изменить один из треков до ошибки: вернём прежний выбор.
+    if (currentRoom && room === currentRoom) {
+      try {
+        await switchRoomDevice(currentRoom, key, previousPreference);
+      } catch {
+        // Состояние звука/камеры показываем по фактическим трекам ниже.
+      }
+      audioEnabled = currentRoom.localParticipant.isMicrophoneEnabled;
+      videoEnabled = currentRoom.localParticipant.isCameraEnabled;
+      updateControls();
+    }
+    devicePrefs[key] = previousPreference;
+    const message = `Не удалось переключить ${deviceTitles[key]}: ${errorMessage(reason)}`;
+    if (devicesDialog.open) devicesError.textContent = message;
+    else showToast(message);
+    syncDeviceSelects();
+  } finally {
+    switchingDevices.delete(key);
+    setDeviceBusy(key, false);
+    updateControls();
+  }
+}
+
+async function handleDeviceChange() {
+  deviceChangePending = true;
+  if (deviceRefresh) return deviceRefresh;
+  deviceRefresh = (async () => {
+    while (deviceChangePending) {
+      deviceChangePending = false;
+      await refreshDeviceLists();
+      for (const key of ["mic", "cam", "speaker"] as const) {
+        const selected = devicePrefs[key];
+        // Только известный отключённый ID: скрытый до разрешения список не стирает выбор.
+        if (!selected || availableDevice(key, selected) || switchingDevices.has(key)
+          || !knownDeviceIds.has(`${deviceKinds[key]}:${selected}`)) continue;
+        if (key === "speaker" && !supportsAudioOutput) continue;
+        const currentRoom = room;
+        const hasDevice = availableDevices.some((device) => device.kind === deviceKinds[key] && device.deviceId);
+        if (!hasDevice && currentRoom && key !== "speaker") {
+          try {
+            if (key === "mic") await currentRoom.localParticipant.setMicrophoneEnabled(false);
+            else await currentRoom.localParticipant.setCameraEnabled(false);
+          } catch { /* Уже остановленный трек не требует повторного отключения. */ }
+          if (room === currentRoom) {
+            audioEnabled = currentRoom.localParticipant.isMicrophoneEnabled;
+            videoEnabled = currentRoom.localParticipant.isCameraEnabled;
+            updateControls();
+          }
+          devicePrefs[key] = undefined;
+          saveDevicePrefs();
+          syncDeviceSelects();
+        } else {
+          await changeDevice(key, "");
+        }
+        if (!devicePrefs[key]) showToast(hasDevice || key === "speaker"
+          ? "Устройство отключено. Используется системный выбор."
+          : `${key === "mic" ? "Микрофон отключён" : "Камера отключена"}. Подключите устройство, чтобы включить его снова.`);
+      }
+    }
+  })();
+  try {
+    await deviceRefresh;
+  } finally {
+    deviceRefresh = null;
+  }
+}
+
+function openDeviceSettings() {
+  if (!room || devicesDialog.open) return;
+  devicesError.textContent = "";
+  syncDeviceSelects();
+  devicesDialog.showModal();
+  void refreshDeviceLists();
+}
+
+async function prepareCaptureDevice(currentRoom: Room, key: "mic" | "cam") {
+  await ensureDeviceLabels(key);
+  if (room !== currentRoom) return false;
+  const selected = devicePrefs[key];
+  const available = availableDevice(key, selected);
+  if (selected && !available && availableDevices.some((device) =>
+    device.kind === deviceKinds[key] && device.label,
+  )) {
+    devicePrefs[key] = undefined;
+    saveDevicePrefs();
+    syncDeviceSelects();
+  }
+  const changed = await switchRoomDevice(currentRoom, key, available ? selected : undefined);
+  if (!changed) throw new Error("Устройство не удалось активировать.");
+  return room === currentRoom;
 }
 
 const initials = (name: string) =>
@@ -262,6 +496,8 @@ function togglePrejoin(button: HTMLButtonElement, value: boolean) {
 }
 
 async function enterMeeting(nextSession: Session) {
+  const requestedAudio = audioEnabled;
+  const requestedVideo = videoEnabled;
   try {
     livekit ??= await import("livekit-client");
   } catch {
@@ -271,10 +507,22 @@ async function enterMeeting(nextSession: Session) {
 
   // exact-констрейнт падает, если устройство отключили после выбора, —
   // сверяем выбор со свежим списком и отсеиваем пропавшие девайсы
+  await Promise.all([
+    requestedAudio ? ensureDeviceLabels("mic") : Promise.resolve(),
+    requestedVideo ? ensureDeviceLabels("cam") : Promise.resolve(),
+  ]);
   await refreshDeviceLists();
-  const wiredMic = hasSelectedOption(micSelect, devicePrefs.mic) ? devicePrefs.mic : undefined;
-  const wiredCam = hasSelectedOption(camSelect, devicePrefs.cam) ? devicePrefs.cam : undefined;
-  const wiredSpeaker = hasSelectedOption(speakerSelect, devicePrefs.speaker)
+  for (const key of ["mic", "cam", "speaker"] as const) {
+    if (devicePrefs[key] && !availableDevice(key, devicePrefs[key])
+      && availableDevices.some((device) => device.kind === deviceKinds[key] && device.label)) {
+      devicePrefs[key] = undefined;
+    }
+  }
+  saveDevicePrefs();
+  syncDeviceSelects();
+  const wiredMic = availableDevice("mic", devicePrefs.mic) ? devicePrefs.mic : undefined;
+  const wiredCam = availableDevice("cam", devicePrefs.cam) ? devicePrefs.cam : undefined;
+  const wiredSpeaker = supportsAudioOutput && availableDevice("speaker", devicePrefs.speaker)
     ? devicePrefs.speaker
     : undefined;
 
@@ -286,7 +534,7 @@ async function enterMeeting(nextSession: Session) {
   $("#connection-label").textContent = "Устанавливаем соединение…";
   document.title = `${nextSession.key} · SayToSee`;
 
-  room = new livekit.Room({
+  const currentRoom = new livekit.Room({
     adaptiveStream: true,
     dynacast: true,
     // exact, а не ideal: Chromium при ideal молча откатывается на дефолт
@@ -300,29 +548,65 @@ async function enterMeeting(nextSession: Session) {
     audioOutput: wiredSpeaker ? { deviceId: wiredSpeaker } : undefined,
     publishDefaults: { simulcast: false, videoCodec: "vp8", dtx: true, red: false },
   });
-  bindRoomEvents(room);
+  room = currentRoom;
+  bindRoomEvents(currentRoom);
+  updateControls();
   try {
-    await room.connect(nextSession.serverUrl, nextSession.token, { autoSubscribe: true });
-    await room.localParticipant.setMicrophoneEnabled(audioEnabled);
-    if (videoEnabled) await room.localParticipant.setCameraEnabled(true);
-    $("#connection-label").textContent = "Защищённое соединение";
-    renderParticipants();
-    updateControls();
+    await currentRoom.connect(nextSession.serverUrl, nextSession.token, { autoSubscribe: true });
   } catch (reason) {
-    await leaveMeeting(true);
-    lobbyError.textContent = `Не удалось войти: ${errorMessage(reason)}`;
+    if (room === currentRoom) {
+      await leaveMeeting(true);
+      lobbyError.textContent = `Не удалось войти: ${errorMessage(reason)}`;
+    }
+    return;
   }
+  if (room !== currentRoom) return;
+  const mediaErrors: string[] = [];
+  if (requestedAudio) {
+    try {
+      await currentRoom.localParticipant.setMicrophoneEnabled(true);
+    } catch (reason) {
+      if (room === currentRoom) audioEnabled = false;
+      mediaErrors.push(`Микрофон недоступен: ${errorMessage(reason)}`);
+    }
+  }
+  if (room !== currentRoom) return;
+  if (requestedVideo) {
+    try {
+      await currentRoom.localParticipant.setCameraEnabled(true);
+    } catch (reason) {
+      if (room === currentRoom) videoEnabled = false;
+      mediaErrors.push(`Камера недоступна: ${errorMessage(reason)}`);
+    }
+  }
+  if (room !== currentRoom) return;
+  $("#connection-label").textContent = "Защищённое соединение";
+  renderParticipants();
+  updateControls();
+  await refreshDeviceLists();
+  if (mediaErrors.length) showToast(mediaErrors.join(" "));
 }
 
 function bindRoomEvents(currentRoom: Room) {
   const { ConnectionState, RoomEvent, Track } = livekit!;
+  const refreshLocalState = () => {
+    if (room !== currentRoom) return;
+    audioEnabled = currentRoom.localParticipant.isMicrophoneEnabled;
+    videoEnabled = currentRoom.localParticipant.isCameraEnabled;
+    screenEnabled = currentRoom.localParticipant.isScreenShareEnabled;
+    updateControls();
+    renderParticipants();
+  };
   currentRoom
     .on(RoomEvent.ParticipantConnected, renderParticipants)
     .on(RoomEvent.ParticipantDisconnected, renderParticipants)
-    .on(RoomEvent.LocalTrackPublished, renderParticipants)
-    .on(RoomEvent.LocalTrackUnpublished, renderParticipants)
-    .on(RoomEvent.TrackMuted, renderParticipants)
-    .on(RoomEvent.TrackUnmuted, renderParticipants)
+    .on(RoomEvent.LocalTrackPublished, () => {
+      refreshLocalState();
+      void refreshDeviceLists();
+    })
+    .on(RoomEvent.LocalTrackUnpublished, refreshLocalState)
+    .on(RoomEvent.TrackMuted, refreshLocalState)
+    .on(RoomEvent.TrackUnmuted, refreshLocalState)
     .on(RoomEvent.TrackSubscribed, (track) => {
       if (track.kind === Track.Kind.Audio) {
         const element = track.attach();
@@ -347,16 +631,15 @@ function bindRoomEvents(currentRoom: Room) {
         ? "Восстанавливаем соединение…"
         : state === ConnectionState.Connected ? "Защищённое соединение" : "Нет соединения";
       $("#meeting-live").classList.toggle("offline", state !== ConnectionState.Connected);
+      updateControls();
     })
-    .on(RoomEvent.Disconnected, () => void leaveMeeting(false))
-    .on(RoomEvent.ActiveDeviceChanged, (kind: MediaDeviceKind, deviceId: string) => {
-      // Смена устройства в комнате обновляет сохранённый выбор
-      if (kind === "audioinput") devicePrefs.mic = deviceId || undefined;
-      else if (kind === "videoinput") devicePrefs.cam = deviceId || undefined;
-      else if (kind === "audiooutput") devicePrefs.speaker = deviceId || undefined;
-      else return;
-      saveDevicePrefs();
-      void refreshDeviceLists();
+    .on(RoomEvent.Disconnected, () => {
+      if (room === currentRoom) void leaveMeeting(false);
+    })
+    .on(RoomEvent.ActiveDeviceChanged, () => {
+      if (room !== currentRoom) return;
+      // Системный выбор остаётся системным, даже если SDK сообщает физический ID.
+      void handleDeviceChange();
     });
 }
 
@@ -441,6 +724,7 @@ function renderParticipants() {
 }
 
 function updateControls() {
+  const connected = Boolean(room && livekit && room.state === livekit.ConnectionState.Connected);
   const states: Array<[string, boolean]> = [
     ["#audio-control", audioEnabled],
     ["#video-control", videoEnabled],
@@ -449,60 +733,203 @@ function updateControls() {
   for (const [selector, enabled] of states) {
     $(selector).classList.toggle("active", enabled);
     $(selector).classList.toggle("disabled", !enabled);
+    $(selector).setAttribute("aria-pressed", String(enabled));
   }
+  $<HTMLButtonElement>("#audio-control").disabled = !connected || switchingDevices.has("mic");
+  $<HTMLButtonElement>("#video-control").disabled = !connected || switchingDevices.has("cam");
+  $<HTMLButtonElement>("#screen-control").disabled = !connected || switchingScreen;
+  devicesControl.disabled = !connected;
 }
 
 async function toggleMicrophone() {
-  if (!room) return;
+  const currentRoom = room;
+  if (!currentRoom || switchingDevices.has("mic") || currentRoom.state !== livekit?.ConnectionState.Connected) return;
+  switchingDevices.add("mic");
+  setDeviceBusy("mic", true);
   try {
-    audioEnabled = !audioEnabled;
-    await room.localParticipant.setMicrophoneEnabled(audioEnabled);
+    const enable = !audioEnabled;
+    if (enable && !await prepareCaptureDevice(currentRoom, "mic")) return;
+    await currentRoom.localParticipant.setMicrophoneEnabled(enable);
+    if (room !== currentRoom) return;
+    audioEnabled = currentRoom.localParticipant.isMicrophoneEnabled;
     updateControls();
+    await refreshDeviceLists();
   } catch (reason) {
-    audioEnabled = !audioEnabled;
-    showToast(errorMessage(reason));
+    if (room === currentRoom) showToast(errorMessage(reason));
+  } finally {
+    switchingDevices.delete("mic");
+    setDeviceBusy("mic", false);
+    updateControls();
+    void handleDeviceChange();
   }
 }
 
 async function toggleCamera() {
-  if (!room) return;
+  const currentRoom = room;
+  if (!currentRoom || switchingDevices.has("cam") || currentRoom.state !== livekit?.ConnectionState.Connected) return;
+  switchingDevices.add("cam");
+  setDeviceBusy("cam", true);
   try {
-    videoEnabled = !videoEnabled;
-    await room.localParticipant.setCameraEnabled(videoEnabled);
+    const enable = !videoEnabled;
+    if (enable && !await prepareCaptureDevice(currentRoom, "cam")) return;
+    await currentRoom.localParticipant.setCameraEnabled(enable);
+    if (room !== currentRoom) return;
+    videoEnabled = currentRoom.localParticipant.isCameraEnabled;
     updateControls();
     renderParticipants();
+    await refreshDeviceLists();
   } catch (reason) {
-    videoEnabled = !videoEnabled;
-    showToast("Не удалось включить камеру: " + errorMessage(reason));
+    if (room === currentRoom) showToast("Не удалось включить камеру: " + errorMessage(reason));
+  } finally {
+    switchingDevices.delete("cam");
+    setDeviceBusy("cam", false);
+    updateControls();
+    void handleDeviceChange();
   }
 }
 
 async function toggleScreen() {
-  if (!room) return;
+  const currentRoom = room;
+  if (!currentRoom || switchingScreen || currentRoom.state !== livekit?.ConnectionState.Connected) return;
+  switchingScreen = true;
+  updateControls();
   try {
-    screenEnabled = !screenEnabled;
-    await room.localParticipant.setScreenShareEnabled(screenEnabled, { audio: false });
+    await currentRoom.localParticipant.setScreenShareEnabled(!screenEnabled, { audio: false });
+    if (room !== currentRoom) return;
+    screenEnabled = currentRoom.localParticipant.isScreenShareEnabled;
     updateControls();
     renderParticipants();
   } catch (reason) {
-    screenEnabled = !screenEnabled;
+    if (room === currentRoom) showToast("Не удалось показать экран: " + errorMessage(reason));
+  } finally {
+    switchingScreen = false;
     updateControls();
-    showToast("Не удалось показать экран: " + errorMessage(reason));
   }
 }
 
 async function leaveMeeting(disconnect = true) {
   const currentRoom = room;
   room = null;
+  if (devicesDialog.open) devicesDialog.close();
   if (disconnect && currentRoom) await currentRoom.disconnect();
+  if (lanHosting) {
+    // Хост ушёл — локальная встреча заканчивается вместе с сервером
+    lanHosting = false;
+    lanApp()?.StopLANHost();
+  }
   document.querySelectorAll("[data-saytosee-audio]").forEach((element) => element.remove());
   tileGrid.replaceChildren();
   meeting.classList.remove("active");
   lobby.classList.add("active");
   session = null;
   screenEnabled = false;
+  togglePrejoin(audioPrejoin, audioEnabled);
+  togglePrejoin(videoPrejoin, videoEnabled);
   document.title = "SayToSee";
   setPending(false);
+}
+
+// --- Локальная сеть: хост и обнаружение встреч ---
+
+async function submitCreateLAN() {
+  lobbyError.textContent = "";
+  if (!nameInput.value.trim()) {
+    lobbyError.textContent = "Введите имя, которое увидят участники.";
+    nameInput.focus();
+    return;
+  }
+  setPending(true, "create");
+  try {
+    const started = await lanApp().StartLANHost(nameInput.value.trim());
+    lanHosting = true;
+    await enterMeeting(started as Session);
+    const url = (started as Session).inviteUrl;
+    $("#connection-label").textContent = `Локальная встреча · гости: ${url}`;
+    showToast(`Хост запущен: ${url}`);
+  } catch (reason) {
+    lobbyError.textContent = errorMessage(reason);
+  } finally {
+    setPending(false);
+  }
+}
+
+async function refreshLANList() {
+  const app = lanApp();
+  if (!app) return;
+  try {
+    const hosts = (await app.DiscoverLANHosts()) as Array<{
+      name: string; ip: string; port: number; roomKey: string; hostName: string;
+    }>;
+    const list = $("#lan-list");
+    list.replaceChildren();
+    for (const host of hosts) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "lan-item";
+      const title = document.createElement("b");
+      title.textContent = host.hostName || host.name;
+      const meta = document.createElement("small");
+      meta.textContent = `${host.roomKey || "встреча"} · ${host.ip}`;
+      item.append(title, meta);
+      item.addEventListener("click", () => void joinLANHost(host));
+      list.appendChild(item);
+    }
+    $("#lan-discovery").classList.toggle("visible", hosts.length > 0);
+  } catch {
+    // mDNS недоступен в этой сети — секция просто пустует
+  }
+}
+
+async function joinLANHost(host: { ip: string; port: number; roomKey: string }) {
+  lobbyError.textContent = "";
+  if (!nameInput.value.trim()) {
+    lobbyError.textContent = "Введите имя, которое увидят участники.";
+    nameInput.focus();
+    return;
+  }
+  setPending(true, "join");
+  try {
+    const started = await lanApp().JoinLANHost(
+      host.ip, host.port, nameInput.value.trim(), host.roomKey || "",
+    );
+    await enterMeeting(started as Session);
+  } catch (reason) {
+    lobbyError.textContent = errorMessage(reason);
+  } finally {
+    setPending(false);
+  }
+}
+
+// --- API-адаптер: внутри Wails вызываем Go, в браузере — HTTP того же хоста ---
+
+async function apiCheckServer() {
+  if (inWails) return CheckServer();
+  const response = await fetch("/api/health");
+  if (!response.ok) throw new Error("сервер недоступен");
+}
+
+async function apiCreateRoom(name: string): Promise<Session> {
+  if (inWails) return CreateRoom(name);
+  const response = await fetch("/api/rooms", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  const data = await response.json() as Session & { error?: string };
+  if (!response.ok) throw new Error(data.error || "сервер ответил с ошибкой");
+  return data;
+}
+
+async function apiJoinRoom(key: string, name: string): Promise<Session> {
+  if (inWails) return JoinRoom({ key: formatKey(key), name });
+  const response = await fetch("/api/token", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ key, name }),
+  });
+  const data = await response.json() as Session & { error?: string };
+  if (!response.ok) throw new Error(data.error || "сервер ответил с ошибкой");
+  return data;
 }
 
 async function submitJoin() {
@@ -520,7 +947,7 @@ async function submitJoin() {
   }
   setPending(true, "join");
   try {
-    await enterMeeting(await JoinRoom({ key: formatKey(key), name: nameInput.value.trim() }));
+    await enterMeeting(await apiJoinRoom(formatKey(key), nameInput.value.trim()));
   } catch (reason) {
     lobbyError.textContent = errorMessage(reason);
   } finally {
@@ -537,7 +964,7 @@ async function submitCreate() {
   }
   setPending(true, "create");
   try {
-    const created = await CreateRoom(nameInput.value.trim());
+    const created = await apiCreateRoom(nameInput.value.trim());
     keyInput.value = created.key;
     await enterMeeting(created);
   } catch (reason) {
@@ -551,9 +978,9 @@ async function checkServer() {
   serverStatus.classList.remove("online", "offline");
   serverStatus.querySelector("em")!.textContent = "Проверяем сервер";
   try {
-    await CheckServer();
+    await apiCheckServer();
     serverStatus.classList.add("online");
-    serverStatus.querySelector("em")!.textContent = "Сервер доступен";
+    serverStatus.querySelector("em")!.textContent = inWails ? "Сервер доступен" : "Хост доступен";
   } catch {
     serverStatus.classList.add("offline");
     serverStatus.querySelector("em")!.textContent = "Сервер недоступен";
@@ -576,18 +1003,13 @@ videoPrejoin.addEventListener("click", () => {
   videoEnabled = !videoEnabled;
   togglePrejoin(videoPrejoin, videoEnabled);
 });
-for (const [select, key] of [
-  [micSelect, "mic"],
-  [camSelect, "cam"],
-  [speakerSelect, "speaker"],
-] as Array<[HTMLSelectElement, keyof DevicePrefs]>) {
-  select.addEventListener("focus", () => void ensureDeviceLabels());
-  select.addEventListener("change", () => {
-    devicePrefs[key] = select.value || undefined;
-    saveDevicePrefs();
-  });
+for (const key of ["mic", "cam", "speaker"] as const) {
+  for (const select of deviceSelects[key]) {
+    select.addEventListener("focus", () => void ensureDeviceLabels(key));
+    select.addEventListener("change", () => void changeDevice(key, select.value));
+  }
 }
-navigator.mediaDevices?.addEventListener?.("devicechange", () => void refreshDeviceLists());
+navigator.mediaDevices?.addEventListener?.("devicechange", () => void handleDeviceChange());
 void refreshDeviceLists();
 $("#join-form").addEventListener("submit", (event) => {
   event.preventDefault();
@@ -597,7 +1019,35 @@ createButton.addEventListener("click", () => void submitCreate());
 $("#audio-control").addEventListener("click", () => void toggleMicrophone());
 $("#video-control").addEventListener("click", () => void toggleCamera());
 $("#screen-control").addEventListener("click", () => void toggleScreen());
+devicesControl.addEventListener("click", openDeviceSettings);
+$("#devices-close").addEventListener("click", () => devicesDialog.close());
+devicesDialog.addEventListener("close", () => {
+  if (meeting.classList.contains("active")) devicesControl.focus();
+});
+devicesDialog.addEventListener("click", (event) => {
+  if (event.target !== devicesDialog) return;
+  const bounds = devicesDialog.getBoundingClientRect();
+  if (event.clientX < bounds.left || event.clientX > bounds.right
+    || event.clientY < bounds.top || event.clientY > bounds.bottom) devicesDialog.close();
+});
 $("#leave-control").addEventListener("click", () => void leaveMeeting());
+
+// Локальная сеть: кнопки хоста и авто-поиск встреч (только внутри Wails)
+if (inWails) {
+  $("#lan-host-button").addEventListener("click", () => void submitCreateLAN());
+  $("#lan-rescan").addEventListener("click", () => void refreshLANList());
+  void refreshLANList();
+  window.setInterval(() => {
+    if (lobby.classList.contains("active")) void refreshLANList();
+  }, 6000);
+} else {
+  // Страница, отданная локальным хостом браузеру/телефону: это роль гостя
+  $("#lan-block").style.display = "none";
+  createButton.style.display = "none";
+  const urlKey = new URLSearchParams(window.location.search).get("key");
+  if (urlKey) keyInput.value = formatKey(urlKey);
+}
+
 $("#copy-invite").addEventListener("click", async () => {
   if (!session) return;
   try {
@@ -608,6 +1058,7 @@ $("#copy-invite").addEventListener("click", async () => {
   }
 });
 window.addEventListener("beforeunload", () => {
+  for (const menu of deviceMenus.values()) menu.destroy();
   if (room) void room.disconnect();
 });
 

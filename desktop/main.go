@@ -23,7 +23,7 @@ func main() {
 		Title:     "SayToSee",
 		Width:     1180,
 		Height:    760,
-		MinWidth:  860,
+		MinWidth:  760,
 		MinHeight: 600,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
